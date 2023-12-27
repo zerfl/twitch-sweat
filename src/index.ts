@@ -1,11 +1,10 @@
 import 'dotenv/config';
-// import OpenAI, { BadRequestError } from 'openai';
-// import imgur from 'imgur';
+import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
+import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot } from '@twurple/easy-bot';
-import * as path from 'path';
-// import { CooldownManager } from './utils/CooldownManager';
+import { ApiClient } from '@twurple/api';
 
 const requiredEnvVars = [
 	'TWITCH_CLIENT_ID',
@@ -20,22 +19,22 @@ requiredEnvVars.forEach((envVar) => {
 	}
 });
 
+type BroadcasterMessageCount = Map<string, number>;
+
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const giftCounts = new Map<string, Map<string | null, number>>();
+let broadcasterCounts: BroadcasterMessageCount;
 
-// get the directory name of the current ES module
 
-// tokenFilePath should be absolute path, relative to this script file
-// const tokenFilePath = path.join(__dirname, 'tokens.json');
-
-async function getAppRootDir()  {
+async function getAppRootDir() {
 	let tries = 0;
-	let currentDir = path.dirname(new URL(import.meta.url).pathname);
+	let currentDir = path.dirname(fileURLToPath(import.meta.url));
 	let found = await exists(path.join(currentDir, 'package.json'));
 
 	while (!found && tries < 10) {
 		currentDir = path.join(currentDir, '..');
 		found = await exists(path.join(currentDir, 'package.json'));
+		console.log(path.join(currentDir, 'package.json'));
 		tries++;
 	}
 
@@ -46,6 +45,21 @@ async function getAppRootDir()  {
 	return currentDir;
 }
 
+async function readMessageCount(filePath: string): Promise<BroadcasterMessageCount> {
+	try {
+		const data = await fs.readFile(filePath, 'utf8');
+		return new Map(Object.entries(JSON.parse(data)));
+	} catch (error) {
+		return new Map();
+	}
+}
+
+async function writeMessageCount(filePath: string, counts: BroadcasterMessageCount): Promise<void> {
+	const objectToSave = Object.fromEntries(counts);
+	await fs.writeFile(filePath, JSON.stringify(objectToSave), 'utf8');
+}
+
+
 async function exists(f: PathLike) {
 	try {
 		await fs.stat(f);
@@ -55,9 +69,31 @@ async function exists(f: PathLike) {
 	}
 }
 
-async function main(tokenFile: string) {
+async function delay(milliseconds = 1000) {
+	await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
+	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
+	return user.some((u) => u !== null && u.userName === broadcasterName);
+}
+
+async function handleEventAndSendMessage(bot: Bot, api: ApiClient, broadcasterName: string): Promise<void> {
+	if (!await isBroadcasterOnline(api, broadcasterName)) {
+		console.log(`Broadcaster ${broadcasterName} is not online, not sending dnkMM message.`);
+		return;
+	}
+
+	const currentCount = broadcasterCounts.get(broadcasterName) ?? 0;
+	broadcasterCounts.set(broadcasterName, currentCount + 1);
+
+	await writeMessageCount(messageCountFile, broadcasterCounts);
+	await bot.say(broadcasterName, `dnkMM`);
+	console.log(`dnkMM message sent on ${broadcasterName}. Total count: ${currentCount + 1}`);
+}
+
+async function main() {
 	try {
-		const tokenFilePath = tokenFile;
 		let tokenData: AccessToken = {
 			accessToken: process.env.TWITCH_ACCESS_TOKEN!,
 			refreshToken: process.env.TWITCH_REFRESH_TOKEN!,
@@ -93,16 +129,14 @@ async function main(tokenFile: string) {
 			authProvider,
 			channels: twitchChannels,
 		});
+		const api = new ApiClient({ authProvider });
 
-		bot.onSub(({broadcasterName, userName}) => {
-			console.log(`New sub on ${broadcasterName} by ${userName}! This should be one :dnkMM`);
-			// bot.say(broadcasterName, `:dnkMM`)
+		bot.onConnect(() => {
+			console.log(`Connected to ${twitchChannels.join(', ')}!`);
 		});
 
-		bot.onResub(({broadcasterName, userName}) => {
-			console.log(`New resub on ${broadcasterName} by ${userName}! This should be one :dnkMM`);
-			// bot.say(broadcasterName, `:dnkMM`)
-		});
+		bot.onSub(({ broadcasterName }) => handleEventAndSendMessage(bot, api, broadcasterName));
+		bot.onResub(({ broadcasterName }) => handleEventAndSendMessage(bot, api, broadcasterName));
 
 		bot.onCommunitySub(async ({ broadcasterName, gifterName, count }) => {
 			const broadcasterGiftCounts =
@@ -111,7 +145,7 @@ async function main(tokenFile: string) {
 			broadcasterGiftCounts.set(gifterName, previousGiftCount + count);
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 
-			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! This should be ${count} :dnkMM`);
+			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}, This should be ignored ???`);
 		});
 
 		bot.onSubGift(async ({ broadcasterName, gifterName }) => {
@@ -122,7 +156,7 @@ async function main(tokenFile: string) {
 			if (previousGiftCount > 0) {
 				broadcasterGiftCounts.set(gifterName, previousGiftCount - 1);
 			} else {
-				console.log(`New sub gift on ${broadcasterName}! We should ignore this I believe.`)
+				console.log(`New sub gift on ${broadcasterName}! We should NOT ignore this I believe. ???`);
 			}
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 		});
@@ -138,16 +172,23 @@ async function main(tokenFile: string) {
 	}
 }
 
+let appRootDir: string = '';
+let tokenFilePath: string = '';
+let messageCountFile: string = '';
 
 try {
-	const appRootDir = await getAppRootDir();
-	const tokenFilePath = path.join(appRootDir, 'tokens.json');
+	appRootDir = await getAppRootDir();
+	tokenFilePath = path.join(appRootDir, 'data', 'tokens.json');
+	messageCountFile = path.join(appRootDir, 'data', 'messageCount.json');
+	broadcasterCounts = await readMessageCount(messageCountFile);
+
 	console.log(`Using token file: ${tokenFilePath}`);
-		await main(tokenFilePath);
+	console.log(`Using message count file: ${messageCountFile}, current counts: ${JSON.stringify(Object.fromEntries(broadcasterCounts))}`);
+
+	await main();
 } catch (error: unknown) {
 	if (error instanceof Error) {
 		console.error(error.message);
 	}
 	process.exit(1);
 }
-

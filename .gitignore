@@ -42,5 +42,4 @@ next-env.d.ts
 .env.local
 .env
 tokens.json
-cooldowns.json
 messageCount.json
