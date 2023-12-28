@@ -1,12 +1,16 @@
 import 'dotenv/config';
 import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
+import OpenAI, { BadRequestError } from 'openai';
+import imgur from 'imgur';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot } from '@twurple/easy-bot';
 import { ApiClient } from '@twurple/api';
 
 const requiredEnvVars = [
+	'OPENAI_API_KEY',
+	'IMGUR_CLIENT_ID',
 	'TWITCH_CLIENT_ID',
 	'TWITCH_CLIENT_SECRET',
 	'TWITCH_CHANNELS',
@@ -21,10 +25,77 @@ requiredEnvVars.forEach((envVar) => {
 
 type BroadcasterMessageCount = Map<string, number>;
 
+const OpenAi = new OpenAI({
+	apiKey: process.env.OPENAI_API_KEY,
+});
+
+// @ts-expect-error imgur types are outdated
+const Imgur = new imgur.ImgurClient({
+	clientId: process.env.IMGUR_CLIENT_ID,
+});
+
+
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const giftCounts = new Map<string, Map<string | null, number>>();
 let broadcasterCounts: BroadcasterMessageCount;
 
+
+async function generateImage(message: string) {
+	const result = { success: false, message: '' };
+
+	try {
+		console.log(`Creating image: ${message}`);
+		const image = await OpenAi.images.generate({
+			model: 'dall-e-3',
+			prompt: message,
+			quality: 'hd',
+			size: '1024x1024',
+			response_format: 'url',
+		});
+
+		if (!image.data[0]?.url) {
+			console.error('No image URL received from OpenAI');
+			result.message =
+				'Failed to receive an image URL from the image generation service.';
+			return result;
+		}
+
+		console.log('Uploading image');
+		const url = image.data[0].url;
+		const uploadedImage = await Imgur.upload({
+			type: 'url',
+			image: url,
+		});
+
+		if (!uploadedImage.success) {
+			console.error('Imgur upload unsuccessful', uploadedImage);
+			result.message =
+				'Image upload failed due to an issue with the image hosting service.';
+			return result;
+		}
+
+		if (!uploadedImage.data.link) {
+			console.error('No link received from Imgur after upload');
+			result.message = 'Failed to retrieve the image link after upload.';
+			return result;
+		}
+
+		console.log(
+			`Sending response back. Image uploaded: ${uploadedImage.data.link}`,
+		);
+		result.success = true;
+		result.message = uploadedImage.data.link;
+		return result;
+	} catch (error) {
+		result.message = 'There was an error, sorry!';
+
+		if (error instanceof BadRequestError && 'message' in error) {
+			result.message = 'Your prompt was rejected.';
+		}
+
+		return result;
+	}
+}
 
 async function getAppRootDir() {
 	let tries = 0;
@@ -76,6 +147,27 @@ async function delay(milliseconds = 1000) {
 async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
 	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
 	return user.some((u) => u !== null && u.userName === broadcasterName);
+}
+
+async function handleEventAndSendImageMessage(bot: Bot, api: ApiClient, broadcasterName: string, userName: string): Promise<void> {
+	if (!await isBroadcasterOnline(api, broadcasterName)) {
+		console.log(`Broadcaster ${broadcasterName} is not online, not sending dnkMM message.`);
+		return;
+	}
+
+	const imageResult = await generateImage(
+		`A character named 'Sweatling', depicted in vibrant blue, wearing an orange hoodie, and holding a heart in front of its body. Below the character is a sign displaying the word '${userName}'. The image combines pixel art and oil painting styles. The character should be designed in pixel art, reminiscent of classic video games with clear, blocky pixels. The rest of the image, including the background and the sign, should have the texture and brushwork characteristic of an oil painting, creating a unique fusion of digital and traditional art.`,
+	);
+	if (!imageResult.success) {
+		return;
+	}
+
+	console.log(`Thank you @${userName} for subscribing 🎁 This is for you: ${imageResult.message}`);
+
+	await bot.say(
+		broadcasterName,
+		`Thank you @${userName} for subscribing 🎁 This is for you: ${imageResult.message}`,
+	);
 }
 
 async function handleEventAndSendMessage(bot: Bot, api: ApiClient, broadcasterName: string): Promise<void> {
@@ -135,8 +227,8 @@ async function main() {
 			console.log(`Connected to ${twitchChannels.join(', ')}!`);
 		});
 
-		bot.onSub(({ broadcasterName }) => handleEventAndSendMessage(bot, api, broadcasterName));
-		bot.onResub(({ broadcasterName }) => handleEventAndSendMessage(bot, api, broadcasterName));
+		bot.onSub(({ broadcasterName, userName }) => handleEventAndSendImageMessage(bot, api, broadcasterName, userName));
+		bot.onResub(({ broadcasterName, userName }) => handleEventAndSendImageMessage(bot, api, broadcasterName, userName));
 
 		bot.onCommunitySub(async ({ broadcasterName, gifterName, count }) => {
 			const broadcasterGiftCounts =
@@ -145,19 +237,23 @@ async function main() {
 			broadcasterGiftCounts.set(gifterName, previousGiftCount + count);
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 
-			// console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}`);
-			await handleEventAndSendMessage(bot, api, broadcasterName);
+			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}`);
+			// await handleEventAndSendMessage(bot, api, broadcasterName);
 		});
 
-		bot.onSubGift(async ({ broadcasterName, gifterName }) => {
+		bot.onSubGift(async ({ broadcasterName, gifterName, userName }) => {
 			const broadcasterGiftCounts =
 				giftCounts.get(broadcasterName) || new Map();
 			const previousGiftCount = broadcasterGiftCounts.get(gifterName) ?? 0;
 
+			console.log(`${broadcasterName} received a gift sub from ${gifterName} to ${userName}.`);
+
 			if (previousGiftCount > 0) {
 				broadcasterGiftCounts.set(gifterName, previousGiftCount - 1);
 			} else {
-				await handleEventAndSendMessage(bot, api, broadcasterName);
+				// await handleEventAndSendMessage(bot, api, broadcasterName);
+				console.log(`Gift count is 0, sending image message`);
+				await handleEventAndSendImageMessage(bot, api, broadcasterName, userName);
 			}
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 		});
