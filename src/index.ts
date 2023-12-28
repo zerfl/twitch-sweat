@@ -156,7 +156,7 @@ async function main() {
 			if (previousGiftCount > 0) {
 				broadcasterGiftCounts.set(gifterName, previousGiftCount - 1);
 			} else {
-				console.log(`New sub gift on ${broadcasterName}! We should NOT ignore this I believe. ???`);
+				await handleEventAndSendMessage(bot, api, broadcasterName);
 			}
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 		});
