@@ -145,7 +145,8 @@ async function main() {
 			broadcasterGiftCounts.set(gifterName, previousGiftCount + count);
 			giftCounts.set(broadcasterName, broadcasterGiftCounts);
 
-			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}, This should be ignored ???`);
+			// console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}`);
+			await handleEventAndSendMessage(bot, api, broadcasterName);
 		});
 
 		bot.onSubGift(async ({ broadcasterName, gifterName }) => {
