@@ -137,7 +137,7 @@ async function generateImage(username: string) {
 		}
 		console.log(`Generated sentence: ${sentenceResult}`);
 
-		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with smooth skin and a completely round head, wearing an orange hoodie and holding a heart in one hand. Nearby is a sign that reads '${username}' in big bold letters. ${sentenceResult} The style of the image features watercolor strokes and clear lines, complemented by pixel art.`;
+		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with smooth skin and a completely round head, wearing an orange hoodie and holding a heart in one hand. Nearby is a sign that reads '${username}' in big bold letters. ${sentenceResult} The style of the image features watercolor strokes and clear lines, complemented by pixel art for the sweatling.`;
 		console.log(`Creating image: ${imagePrompt}`);
 		const image = await OpenAi.images.generate({
 			model: 'dall-e-3',
@@ -357,7 +357,7 @@ async function main() {
 					return;
 				}
 
-				await storeImageData(broadcasterName, userName, message);
+				await storeImageData(broadcasterName, params[0], message);
 
 				await say(`@${userName} ${message}`);
 			})],
