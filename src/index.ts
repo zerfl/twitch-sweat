@@ -137,7 +137,7 @@ async function generateImage(username: string) {
 		}
 		console.log(`Generated sentence: ${sentenceResult}`);
 
-		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with smooth skin and a completely round head, wearing an orange hoodie and holding a heart in one hand. Nearby is a sign that reads '${username}' in big bold letters. ${sentenceResult} The style of the image features watercolor strokes and clear lines, complemented by pixel art for the sweatling.`;
+		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with smooth skin and a completely round head, wearing an orange hoodie and holding a heart in one hand. Nearby is a sign that reads '${username}' in bold letters. ${sentenceResult} Create a pixel art image with a smooth, detailed aesthetic. The image should use a high-resolution pixel grid to achieve refined curves and intricate details. Employ a vibrant color palette with specific shades for highlights and shadows to provide depth. Ensure outlines are clean and dark for crisp definition. The composition should be coherent and polished, reflecting a modern take on the pixel art style with a seamless visual flow.`;
 		console.log(`Creating image: ${imagePrompt}`);
 		const image = await OpenAi.images.generate({
 			model: 'dall-e-3',
