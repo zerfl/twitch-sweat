@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
 import { ApiClient } from '@twurple/api';
+import throttledQueue from 'throttled-queue';
 
 const requiredEnvVars = [
 	'OPENAI_API_KEY',
@@ -58,6 +59,8 @@ const Imgur = new imgur.ImgurClient({
 
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const userCheerMap: UserCheerMap = new Map();
+const throttle = throttledQueue(20, 30 * 1000, true);
+
 
 async function storeImageData(broadcaster: string, user: string, image: string) {
 	let broadcasterImageData: BroadcasterImages;
@@ -222,11 +225,6 @@ async function exists(f: PathLike) {
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function delay(milliseconds = 1000) {
-	await new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
 async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
 	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
 	return user.some((u) => u !== null && u.userName === broadcasterName);
@@ -240,8 +238,11 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 
 	const imageResult = await generateImage(userName);
 	if (!imageResult.success) {
-		await bot.say(broadcasterName,
-			`Thank you @${userName} for gifting dnkLove Unfortunately, I was unable to generate an image for you.`,
+		await throttle(() => {
+				return bot.say(broadcasterName,
+					`Thank you @${userName} for gifting dnkLove Unfortunately, I was unable to generate an image for you.`,
+				);
+			}
 		);
 		return;
 	}
@@ -250,16 +251,20 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 
 	if (gifting) {
 		console.log(`Sending Gift Sub image`);
-		await bot.say(broadcasterName,
-			`Thank you @${userName} for gifting dnkLove This is for you: ${imageResult.message}`,
-		);
+		await throttle(() => {
+			return bot.say(broadcasterName,
+				`Thank you @${userName} for gifting dnkLove This is for you: ${imageResult.message}`,
+			);
+		});
 		return;
 	}
 
 	console.log(`Sending Sub image`);
-	await bot.say(broadcasterName,
-		`Thank you @${userName} for subscribing dnkLove This is for you: ${imageResult.message}`,
-	);
+	await throttle(() => {
+		return bot.say(broadcasterName,
+			`Thank you @${userName} for subscribing dnkLove This is for you: ${imageResult.message}`,
+		);
+	});
 }
 
 async function setUserCheer(
@@ -353,13 +358,18 @@ async function main() {
 
 				const { success, message } = await generateImage(params.join(' '));
 				if (!success) {
-					await say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
+					await throttle(() => {
+						return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
+					});
+
 					return;
 				}
 
 				await storeImageData(broadcasterName, params[0], message);
 
-				await say(`@${userName} ${message}`);
+				await throttle(() => {
+					return say(`@${userName} ${message}`);
+				});
 			})],
 		});
 

@@ -1,6 +1,6 @@
 {
   "name": "twitch-sweat",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "",
   "type": "module",
   "main": "src/index.ts",
@@ -34,6 +34,7 @@
     "axios": "^1.6.2",
     "dotenv": "^16.3.1",
     "imgur": "^2.3.0",
-    "openai": "^4.22.1"
+    "openai": "^4.22.1",
+    "throttled-queue": "^2.1.4"
   }
 }
