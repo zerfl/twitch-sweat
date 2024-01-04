@@ -103,7 +103,7 @@ async function generateImage(username: string) {
 
 	try {
 		console.log(`Analysing text: ${username}`);
-		const analysisPrompt = `You are a diligent language analyst tasked with dissecting words to uncover their meanings. Your analysis should start by examining the word for recognizable roots. Consider if it's a compound word formed by smaller words or a misspelling of a common word. If the word is not in English, explore common foreign languages. For unidentifiable words, offer a creative interpretation based on phonetics or semblance to known words. Persist in your analysis from different perspectives until a plausible meaning or structure is identified. For nicknames or fictional terms, interpret based on construction or identifiable parts. Your goal is to always provide a useful interpretation or insight into the word's possible meaning and structure. Return a single, concise sentence that encapsulates the potential meaning or structure of the word.`;
+		const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
 		const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
@@ -121,7 +121,6 @@ async function generateImage(username: string) {
 		}
 
 		console.log(`Analysed text: ${analysisResult}`);
-
 		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
 			...analysisMessages,
 			{
