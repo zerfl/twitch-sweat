@@ -347,7 +347,7 @@ async function main() {
 			authProvider,
 			channels: twitchChannels,
 			commands: [createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-				if (!['partyhorst', 'DunkOrSlam'].includes(userName)) {
+				if (!['partyhorst', 'dunkorslam'].includes(userName.toLowerCase())) {
 					return;
 				}
 
