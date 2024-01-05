@@ -35,6 +35,7 @@ type SavedCheerMap = {
 		users: { user: string; cheers: number }[];
 	}[];
 };
+
 type SingleImage = {
 	user: string;
 	image: string;
@@ -47,6 +48,7 @@ type BroadcasterImages = {
 
 type UserMap = Map<string, number>;
 type UserCheerMap = Map<string, UserMap>;
+type UserMeaningMap = Map<string, string>;
 
 const OpenAi = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
@@ -59,8 +61,27 @@ const Imgur = new imgur.ImgurClient({
 
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const userCheerMap: UserCheerMap = new Map();
-const throttle = throttledQueue(20, 30 * 1000, true);
+const userMeaningMap: UserMeaningMap = new Map();
+const messagesThrottle = throttledQueue(20, 30 * 1000, true);
+//TODO: change this whenever the open ai account tier changes, thus changing the rate limit
+/*
+ * DALL-E throttling
+ * Tier 1: 5 requests per minute
+ * Tier 2: 7 requests per minute
+ * Tier 3: 7 requests per minute
+ * Tier 4: 15 requests per minute
+ * Tier 5: 50 requests per minute
+ */
+const dalleThrottle = throttledQueue(7, 60 * 1000, true);
 
+
+async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
+	try {
+		await fs.access(filePath);
+	} catch {
+		await fs.writeFile(filePath, defaultContent, 'utf-8');
+	}
+}
 
 async function storeImageData(broadcaster: string, user: string, image: string) {
 	let broadcasterImageData: BroadcasterImages;
@@ -101,8 +122,10 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 async function generateImage(username: string) {
 	const result = { success: false, message: '' };
 
+	const perhapsUsernameWithMeaning = await getUserMeaning(username.toLowerCase());
+
 	try {
-		console.log(`Analysing text: ${username}`);
+		console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
 		const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
 		const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
@@ -111,7 +134,7 @@ async function generateImage(username: string) {
 			},
 			{
 				role: 'user',
-				content: username,
+				content: perhapsUsernameWithMeaning,
 			},
 		];
 		const analysisResult = await getChatCompletion(analysisMessages);
@@ -140,14 +163,17 @@ async function generateImage(username: string) {
 		console.log(`Generated sentence: ${sentenceResult}`);
 
 		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with a completely round head, wearing an orange hoodie and holding a heart in one hand. The sweatling's skin is smooth and flawless. Nearby is a sign that reads '${username}' in bold letters. ${sentenceResult} The style of the image features watercolor strokes and clear lines, complemented by pixel art for the sweatling. Achieve refined curves and intricate details. Employ a vibrant color palette with specific shades for highlights and shadows to provide depth. Ensure outlines are clean and dark for crisp definition. The composition should be coherent and polished, reflecting a modern take on the watercolor and pixel art style with a seamless visual flow.`;
-		console.log(`Creating image: ${imagePrompt}`);
-		const image = await OpenAi.images.generate({
-			model: 'dall-e-3',
-			prompt: imagePrompt,
-			quality: 'standard',
-			size: '1024x1024',
-			response_format: 'url',
+		const image = await dalleThrottle(() => {
+			console.log(`Creating image: ${imagePrompt}`);
+			return OpenAi.images.generate({
+				model: 'dall-e-3',
+				prompt: imagePrompt,
+				quality: 'standard',
+				size: '1024x1024',
+				response_format: 'url',
+			});
 		});
+
 
 		if (!image.data[0]?.url) {
 			console.error('No image URL received from OpenAI');
@@ -239,7 +265,7 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 
 	const imageResult = await generateImage(userName);
 	if (!imageResult.success) {
-		await throttle(() => {
+		await messagesThrottle(() => {
 				return bot.say(broadcasterName,
 					`Thank you @${userName} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
 				);
@@ -301,6 +327,39 @@ async function loadCheers(filePath: PathLike) {
 	}
 }
 
+async function loadMeanings(filePath: PathLike) {
+	try {
+		const data = await fs.readFile(filePath, 'utf-8');
+		const meanings = JSON.parse(data) as Record<string, string>;
+		Object.entries(meanings).forEach(([user, meaning]) => {
+			userMeaningMap.set(user, meaning);
+		});
+	} catch (error) {
+		console.error(`Error reading meanings file at ${filePath}`, error);
+	}
+}
+
+async function setMeaning(user: string, meaning: string) {
+	userMeaningMap.set(user, meaning);
+}
+
+async function removeMeaning(user: string) {
+	return userMeaningMap.delete(user);
+}
+
+async function saveMeanings(filePath: PathLike) {
+	const meanings: Record<string, string> = {};
+	userMeaningMap.forEach((meaning, user) => {
+		meanings[user] = meaning;
+	});
+
+	await fs.writeFile(filePath, JSON.stringify(meanings, null, 4), 'utf-8');
+}
+
+async function getUserMeaning(user: string) {
+	return userMeaningMap.get(user) || user;
+}
+
 const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(0, n - 1)}...` : str);
 
 async function main() {
@@ -339,30 +398,91 @@ async function main() {
 		const bot = new Bot({
 			authProvider,
 			channels: twitchChannels,
-			commands: [createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-				if (!['partyhorst', 'dunkorslam'].includes(userName.toLowerCase())) {
-					return;
-				}
+			commands: [
+				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
+					if (!['partyhorst', 'dunkorslam'].includes(userName.toLowerCase())) {
+						return;
+					}
 
-				if (params.length === 0) {
-					return;
-				}
+					if (params.length === 0) {
+						return;
+					}
 
-				const { success, message } = await generateImage(params.join(' '));
-				if (!success) {
-					await throttle(() => {
-						return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
+					const { success, message } = await generateImage(params.join(' '));
+					if (!success) {
+						await messagesThrottle(() => {
+							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
+						});
+
+						return;
+					}
+
+					await storeImageData(broadcasterName, params[0], message);
+
+					await messagesThrottle(() => {
+						return say(`@${userName} Here's your image: ${message}`);
 					});
+				}),
+				createBotCommand('setmeaning', async (params, { userName, say }) => {
+					if (!['myndzi', 'dunkorslam'].includes(userName.toLowerCase())) {
+						return;
+					}
 
-					return;
-				}
+					if (params.length < 2) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a username and a meaning.`);
+						});
+						return;
+					}
 
-				await storeImageData(broadcasterName, params[0], message);
+					const user = params[0];
+					const meaning = params.slice(1).join(' ');
 
-				await throttle(() => {
-					return say(`@${userName} ${message}`);
-				});
-			})],
+					await setMeaning(user.toLowerCase(), meaning);
+					await saveMeanings(meaningsFilePath);
+
+					await messagesThrottle(() => {
+						return say(`@${userName} Meaning for ${user} set.`);
+					});
+				}),
+				createBotCommand('delmeaning', async (params, { userName, say }) => {
+					if (!['myndzi', 'dunkorslam'].includes(userName.toLowerCase())) {
+						return;
+					}
+
+					if (params.length !== 1) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a username.`);
+						});
+						return;
+					}
+					const user = params[0];
+					const wasRemoved = await removeMeaning(user.toLowerCase());
+					await saveMeanings(meaningsFilePath);
+
+					await messagesThrottle(() => {
+						if (!wasRemoved) {
+							return say(`@${userName} Meaning for ${user} not found.`);
+						}
+
+						return say(`@${userName} Meaning for ${user} removed.`);
+					});
+				}),
+				createBotCommand('getmeaning', async (params, { userName, say }) => {
+					if (params.length !== 1) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a username.`);
+						});
+						return;
+					}
+
+					const user = params[0];
+					const meaning = await getUserMeaning(user.toLowerCase());
+					await messagesThrottle(() => {
+						return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
+					});
+				}),
+			],
 		});
 
 		bot.onConnect(() => {
@@ -397,13 +517,13 @@ async function main() {
 			handleEventAndSendImageMessage(bot, broadcasterName, gifterName, true);
 		});
 
-		bot.onCommunitySub(async ({ broadcasterName, gifterName, count }) => {
+		bot.onCommunitySub(({ broadcasterName, gifterName, count }) => {
 			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}`);
-			await handleEventAndSendImageMessage(bot, broadcasterName, gifterName || 'anonymous', true);
+			handleEventAndSendImageMessage(bot, broadcasterName, gifterName || 'anonymous', true);
 		});
 
-		bot.onSubGift(async ({ broadcasterName, userName }) => {
-			await handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		bot.onSubGift(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(bot, broadcasterName, userName);
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
@@ -421,6 +541,7 @@ let appRootDir: string = '';
 let tokenFilePath: string = '';
 let cheersCountFile: string = '';
 let imagesFilePath: string = '';
+let meaningsFilePath: string = '';
 
 
 try {
@@ -428,16 +549,26 @@ try {
 	tokenFilePath = path.join(appRootDir, 'data', 'tokens.json');
 	cheersCountFile = path.join(appRootDir, 'data', 'cheers.json');
 	imagesFilePath = path.join(appRootDir, 'data', 'images.json');
+	meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
+
+	await Promise.all([
+		ensureFileExists(tokenFilePath),
+		ensureFileExists(cheersCountFile, JSON.stringify({ cheers: [] })),
+		ensureFileExists(imagesFilePath, JSON.stringify({})),
+		ensureFileExists(meaningsFilePath, JSON.stringify({})),
+	]);
+
 	await loadCheers(cheersCountFile);
+	await loadMeanings(meaningsFilePath);
 
 	console.log(`Using token file: ${tokenFilePath}`);
 	console.log(`Using cheers count file: ${cheersCountFile}`);
 	console.log(`Using images file: ${imagesFilePath}`);
+	console.log(`Using meanings file: ${meaningsFilePath}`);
 
 	await main();
 } catch (error: unknown) {
 	if (error instanceof Error) {
 		console.error(error.message);
 	}
-	process.exit(1);
 }
