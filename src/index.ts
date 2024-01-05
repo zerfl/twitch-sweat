@@ -122,7 +122,7 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 async function generateImage(username: string) {
 	const result = { success: false, message: '' };
 
-	const perhapsUsernameWithMeaning = await getUserMeaning(username.toLowerCase());
+	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
 	try {
 		console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
@@ -356,7 +356,7 @@ async function saveMeanings(filePath: PathLike) {
 	await fs.writeFile(filePath, JSON.stringify(meanings, null, 4), 'utf-8');
 }
 
-async function getUserMeaning(user: string) {
+function getUserMeaning(user: string) {
 	return userMeaningMap.get(user) || user;
 }
 
@@ -477,7 +477,7 @@ async function main() {
 					}
 
 					const user = params[0];
-					const meaning = await getUserMeaning(user.toLowerCase());
+					const meaning = getUserMeaning(user.toLowerCase());
 					await messagesThrottle(() => {
 						return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
 					});
