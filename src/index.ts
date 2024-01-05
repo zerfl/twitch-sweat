@@ -235,35 +235,28 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 		return;
 	}
 
+	const verb = gifting ? 'gifting' : 'subscribing';
+
 	const imageResult = await generateImage(userName);
 	if (!imageResult.success) {
 		await throttle(() => {
 				return bot.say(broadcasterName,
-					`Thank you @${userName} for gifting dnkLove Unfortunately, I was unable to generate an image for you.`,
+					`Thank you @${userName} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
 				);
 			},
 		);
 		return;
 	}
-
 	await storeImageData(broadcasterName, userName, imageResult.message);
 
-	if (gifting) {
+	console.log(`Sending ${verb} image`);
+	await messagesThrottle(() => {
 		console.log(`Sending Gift Sub image`);
-		await throttle(() => {
-			return bot.say(broadcasterName,
-				`Thank you @${userName} for gifting dnkLove This is for you: ${imageResult.message}`,
-			);
-		});
-		return;
-	}
-
-	console.log(`Sending Sub image`);
-	await throttle(() => {
 		return bot.say(broadcasterName,
-			`Thank you @${userName} for subscribing dnkLove This is for you: ${imageResult.message}`,
+			`Thank you @${userName} for ${verb} dnkLove This is for you: ${imageResult.message}`,
 		);
 	});
+
 }
 
 async function setUserCheer(
