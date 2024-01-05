@@ -231,7 +231,7 @@ async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Pro
 
 async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string, userName: string, gifting: boolean = false): Promise<void> {
 	if (!await isBroadcasterOnline(bot.api, broadcasterName)) {
-		console.log(`Broadcaster ${broadcasterName} is not online, not sending dnkMM message.`);
+		console.log(`Broadcaster ${broadcasterName} is not online, skipping.`);
 		return;
 	}
 
@@ -241,7 +241,7 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 				return bot.say(broadcasterName,
 					`Thank you @${userName} for gifting dnkLove Unfortunately, I was unable to generate an image for you.`,
 				);
-			}
+			},
 		);
 		return;
 	}
