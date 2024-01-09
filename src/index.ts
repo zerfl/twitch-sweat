@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
 import { ApiClient } from '@twurple/api';
+import { Client as DiscordClient, Events, GatewayIntentBits } from 'discord.js';
 import throttledQueue from 'throttled-queue';
 
 const requiredEnvVars = [
@@ -18,6 +19,7 @@ const requiredEnvVars = [
 	'TWITCH_ACCESS_TOKEN',
 	'TWITCH_REFRESH_TOKEN',
 	'IMAGES_PER_MINUTE',
+	'DISCORD_BOT_TOKEN',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -61,6 +63,7 @@ const Imgur = new imgur.ImgurClient({
 });
 
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
+const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const userCheerMap: UserCheerMap = new Map();
 const userMeaningMap: UserMeaningMap = new Map();
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
@@ -258,8 +261,8 @@ async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Pro
 	return user.some((u) => u !== null && u.userName === broadcasterName);
 }
 
-async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string, userName: string, gifting: boolean = false): Promise<void> {
-	if (!await isBroadcasterOnline(bot.api, broadcasterName)) {
+async function handleEventAndSendImageMessage(twitchBot: Bot, discordBot: DiscordClient, broadcasterName: string, userName: string, gifting: boolean = false): Promise<void> {
+	if (!await isBroadcasterOnline(twitchBot.api, broadcasterName)) {
 		console.log(`Broadcaster ${broadcasterName} is not online, skipping.`);
 		return;
 	}
@@ -269,7 +272,7 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 	const imageResult = await generateImage(userName);
 	if (!imageResult.success) {
 		await messagesThrottle(() => {
-				return bot.say(broadcasterName,
+				return twitchBot.say(broadcasterName,
 					`Thank you @${userName} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
 				);
 			},
@@ -278,14 +281,26 @@ async function handleEventAndSendImageMessage(bot: Bot, broadcasterName: string,
 	}
 	await storeImageData(broadcasterName, userName, imageResult.message);
 
-	console.log(`Sending ${verb} image`);
+
+	for (const channelId of discordChannels) {
+		const channel = discordBot.channels.cache.get(channelId);
+		if (channel && channel.isTextBased()) {
+			try {
+				await channel.send(`Thank you @${userName} for ${verb}. Here's your sweatling: ${imageResult.message}`);
+			} catch (error) {
+				console.log(`Error sending message to channel ${channelId}`, error);
+			}
+		}
+	}
+
+
 	await messagesThrottle(() => {
-		console.log(`Sending Gift Sub image`);
-		return bot.say(broadcasterName,
+		console.log(`Sending ${verb} image`);
+
+		return twitchBot.say(broadcasterName,
 			`Thank you @${userName} for ${verb} dnkLove This is for you: ${imageResult.message}`,
 		);
 	});
-
 }
 
 async function setUserCheer(
@@ -367,6 +382,17 @@ const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(
 
 async function main() {
 	try {
+		const discordBot = new DiscordClient({
+			intents: [GatewayIntentBits.Guilds],
+		});
+
+		discordBot.on(Events.ClientReady, () => {
+			console.log('Discord bot logged in.');
+			discordBot.user!.setPresence({ activities: [{ name: 'Noita' }], status: 'online' });
+		});
+		await discordBot.login(process.env.DISCORD_BOT_TOKEN!);
+
+
 		let tokenData: AccessToken = {
 			accessToken: process.env.TWITCH_ACCESS_TOKEN!,
 			refreshToken: process.env.TWITCH_REFRESH_TOKEN!,
@@ -398,7 +424,7 @@ async function main() {
 		});
 		await authProvider.addUserForToken(tokenData, ['chat']);
 
-		const bot = new Bot({
+		const twitchBot = new Bot({
 			authProvider,
 			channels: twitchChannels,
 			commands: [
@@ -488,12 +514,11 @@ async function main() {
 			],
 		});
 
-		bot.onConnect(() => {
+		twitchBot.onConnect(() => {
 			console.log(`Connected to ${twitchChannels.join(', ')}!`);
 		});
 
-
-		bot.chat.onMessage(async (channel, user, _text, message) => {
+		twitchBot.chat.onMessage(async (channel, user, _text, message) => {
 			if (message.isCheer) {
 				console.log(`Cheer received on ${channel} from ${user}! Bits: ${message.bits}`);
 				await setUserCheer(channel, user, message.bits);
@@ -501,32 +526,31 @@ async function main() {
 			}
 		});
 
-		bot.onSub(({ broadcasterName, userName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		twitchBot.onSub(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
-		bot.onResub(({ broadcasterName, userName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		twitchBot.onResub(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
-		bot.onGiftPaidUpgrade(({ broadcasterName, userName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
-		bot.onPrimePaidUpgrade(({ broadcasterName, userName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
-		bot.onStandardPayForward(({ broadcasterName, gifterName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, gifterName, true);
+		twitchBot.onStandardPayForward(({ broadcasterName, gifterName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
 		});
-		bot.onCommunityPayForward(({ broadcasterName, gifterName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, gifterName, true);
-		});
-
-		bot.onCommunitySub(({ broadcasterName, gifterName, count }) => {
-			console.log(`New community sub(s) on ${broadcasterName} by ${gifterName}! Count: ${count}`);
-			handleEventAndSendImageMessage(bot, broadcasterName, gifterName || 'anonymous', true);
+		twitchBot.onCommunityPayForward(({ broadcasterName, gifterName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
 		});
 
-		bot.onSubGift(({ broadcasterName, userName }) => {
-			handleEventAndSendImageMessage(bot, broadcasterName, userName);
+		twitchBot.onCommunitySub(({ broadcasterName, gifterName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName || 'Anonymous', true);
+		});
+
+		twitchBot.onSubGift(({ broadcasterName, userName }) => {
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
@@ -545,7 +569,6 @@ let tokenFilePath: string = '';
 let cheersCountFile: string = '';
 let imagesFilePath: string = '';
 let meaningsFilePath: string = '';
-
 
 try {
 	appRootDir = await getAppRootDir();
