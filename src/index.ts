@@ -17,6 +17,7 @@ const requiredEnvVars = [
 	'TWITCH_CHANNELS',
 	'TWITCH_ACCESS_TOKEN',
 	'TWITCH_REFRESH_TOKEN',
+	'IMAGES_PER_MINUTE',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -72,7 +73,9 @@ const messagesThrottle = throttledQueue(20, 30 * 1000, true);
  * Tier 4: 15 requests per minute
  * Tier 5: 50 requests per minute
  */
-const dalleThrottle = throttledQueue(7, 60 * 1000, true);
+// convert process.env.IMAGES_PER_MINUTE string to number
+const imagesPerMinute = parseInt(process.env.IMAGES_PER_MINUTE!, 10);
+const dalleThrottle = throttledQueue(imagesPerMinute, 60 * 1000, true);
 
 
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
