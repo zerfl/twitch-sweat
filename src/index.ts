@@ -6,7 +6,7 @@ import imgur from 'imgur';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
-import { ApiClient } from '@twurple/api';
+// import { ApiClient } from '@twurple/api';
 import { Client as DiscordClient, Events, GatewayIntentBits } from 'discord.js';
 import throttledQueue from 'throttled-queue';
 
@@ -256,16 +256,16 @@ async function exists(f: PathLike) {
 	}
 }
 
-async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
-	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
-	return user.some((u) => u !== null && u.userName === broadcasterName);
-}
+// async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
+// 	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
+// 	return user.some((u) => u !== null && u.userName === broadcasterName);
+// }
 
 async function handleEventAndSendImageMessage(twitchBot: Bot, discordBot: DiscordClient, broadcasterName: string, userName: string, gifting: boolean = false): Promise<void> {
-	if (!await isBroadcasterOnline(twitchBot.api, broadcasterName)) {
-		console.log(`Broadcaster ${broadcasterName} is not online, skipping.`);
-		return;
-	}
+	// if (!await isBroadcasterOnline(twitchBot.api, broadcasterName)) {
+	// 	console.log(`Broadcaster ${broadcasterName} is not online, skipping.`);
+	// 	return;
+	// }
 
 	const verb = gifting ? 'gifting' : 'subscribing';
 
