@@ -31,11 +31,6 @@ requiredEnvVars.forEach((envVar) => {
 	}
 });
 
-const originalLog = console.log;
-console.log = (...args: unknown[]) => {
-	originalLog(`[${new Date().toISOString()}]`, ...args);
-};
-
 type SavedCheerMap = {
 	cheers: {
 		broadcaster: string;
@@ -656,6 +651,7 @@ let tokenFilePath: string = '';
 let cheersCountFile: string = '';
 let imagesFilePath: string = '';
 let meaningsFilePath: string = '';
+let logFilePath: string = '';
 
 try {
 	appRootDir = await getAppRootDir();
@@ -663,6 +659,15 @@ try {
 	cheersCountFile = path.join(appRootDir, 'data', 'cheers.json');
 	imagesFilePath = path.join(appRootDir, 'data', 'images.json');
 	meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
+	logFilePath = path.join(appRootDir, 'data', 'log.txt');
+
+	const originalLog = console.log;
+	console.log = (...args: unknown[]) => {
+		// write to file
+		const now = new Date().toISOString();
+		fs.appendFile(logFilePath, `[${now}] ${args.join(' ')}\n`);
+		originalLog(`[${now}]`, ...args);
+	};
 
 	await Promise.all([
 		ensureFileExists(tokenFilePath),
