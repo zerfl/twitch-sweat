@@ -256,17 +256,7 @@ async function exists(f: PathLike) {
 	}
 }
 
-// async function isBroadcasterOnline(api: ApiClient, broadcasterName: string): Promise<boolean> {
-// 	const user = await api.streams.getStreamsByUserNames([broadcasterName]);
-// 	return user.some((u) => u !== null && u.userName === broadcasterName);
-// }
-
 async function handleEventAndSendImageMessage(twitchBot: Bot, discordBot: DiscordClient, broadcasterName: string, userName: string, gifting: boolean = false): Promise<void> {
-	// if (!await isBroadcasterOnline(twitchBot.api, broadcasterName)) {
-	// 	console.log(`Broadcaster ${broadcasterName} is not online, skipping.`);
-	// 	return;
-	// }
-
 	const verb = gifting ? 'gifting' : 'subscribing';
 
 	const imageResult = await generateImage(userName);
@@ -437,7 +427,8 @@ async function main() {
 						return;
 					}
 
-					const { success, message } = await generateImage(params.join(' '));
+					const target = params[0].replace('@', '');
+					const { success, message } = await generateImage(target);
 					if (!success) {
 						await messagesThrottle(() => {
 							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
@@ -445,8 +436,18 @@ async function main() {
 
 						return;
 					}
-
 					await storeImageData(broadcasterName, params[0], message);
+
+					for (const channelId of discordChannels) {
+						const channel = discordBot.channels.cache.get(channelId);
+						if (channel && channel.isTextBased()) {
+							try {
+								await channel.send(`@${userName} requested generation for @${target}. Here's the sweatling: ${message}`);
+							} catch (error) {
+								console.log(`Error sending message to channel ${channelId}`, error);
+							}
+						}
+					}
 
 					await messagesThrottle(() => {
 						return say(`@${userName} Here's your image: ${message}`);
