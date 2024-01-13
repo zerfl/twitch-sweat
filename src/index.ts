@@ -571,27 +571,35 @@ async function main() {
 			}
 		});
 		twitchBot.onSub(({ broadcasterName, userName }) => {
+			console.log('onSub', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 		twitchBot.onResub(({ broadcasterName, userName }) => {
+			console.log('onResub', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName }) => {
+			console.log('onGiftPaidUpgrade', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName }) => {
+			console.log('onPrimePaidUpgrade', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 		twitchBot.onStandardPayForward(({ broadcasterName, gifterName }) => {
+			console.log('onStandardPayForward', broadcasterName, gifterName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
 		});
 		twitchBot.onCommunityPayForward(({ broadcasterName, gifterName }) => {
+			console.log('onCommunityPayForward', broadcasterName, gifterName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
 		});
 		twitchBot.onCommunitySub(({ broadcasterName, gifterName }) => {
+			console.log('onCommunitySub', broadcasterName, gifterName || 'Anonymous');
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName || 'Anonymous', true);
 		});
 		twitchBot.onSubGift(({ broadcasterName, userName }) => {
+			console.log('onSubGift', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
 		});
 	} catch (error: unknown) {
