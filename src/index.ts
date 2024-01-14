@@ -6,7 +6,7 @@ import imgur from 'imgur';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
-import { Client as DiscordClient, Events, GatewayIntentBits, Partials } from 'discord.js';
+import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials } from 'discord.js';
 import throttledQueue from 'throttled-queue';
 import { IgnoreListManager } from './utils/IgnoreListManager';
 
@@ -65,6 +65,16 @@ async function ensureFileExists(filePath: string, defaultContent: string = ''): 
 	}
 }
 
+async function getImageData(broadcaster: string) {
+	try {
+		const broadcasterImageData = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
+		return broadcasterImageData[broadcaster] || [];
+	} catch (error) {
+		console.error(`Error reading image file at ${imagesFilePath}`, error);
+		return [];
+	}
+}
+
 async function storeImageData(broadcaster: string, user: string, image: string) {
 	let broadcasterImageData: BroadcasterImages;
 
@@ -76,7 +86,7 @@ async function storeImageData(broadcaster: string, user: string, image: string) 
 	}
 
 	const imageData = broadcasterImageData[broadcaster] || [];
-	imageData.push({
+	const length = imageData.push({
 		user,
 		image,
 		date: new Date().toISOString(),
@@ -85,6 +95,8 @@ async function storeImageData(broadcaster: string, user: string, image: string) 
 	broadcasterImageData[broadcaster] = imageData;
 
 	await fs.writeFile(imagesFilePath, JSON.stringify(broadcasterImageData, null, 4), 'utf-8');
+
+	return length;
 }
 
 async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) {
@@ -248,7 +260,17 @@ async function handleEventAndSendImageMessage(
 		});
 		return;
 	}
-	await storeImageData(broadcasterName, target, imageResult.message);
+	const numImages = await storeImageData(broadcasterName, target, imageResult.message);
+
+	try {
+		discordBot.user!.setActivity({
+			name: 'ImageGenerations',
+			state: `🖼️ ${numImages} images generated`,
+			type: ActivityType.Custom,
+		});
+	} catch (error) {
+		console.error('Discord error', error);
+	}
 
 	for (const channelId of discordChannels) {
 		const channel = discordBot.channels.cache.get(channelId);
@@ -345,17 +367,25 @@ const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(
 
 async function main() {
 	try {
+		const numImages = await getImageData(twitchChannels[0]);
+
 		const discordBot = new DiscordClient({
 			intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages],
 			partials: [Partials.Channel, Partials.Message],
+			presence: {
+				activities: [
+					{
+						name: 'ImageGenerations',
+						state: `🖼️ ${numImages.length} images generated`,
+						type: ActivityType.Custom,
+					},
+				],
+				status: 'online',
+			},
 		});
 
 		discordBot.on(Events.ClientReady, async () => {
 			console.log('Discord bot logged in.');
-			discordBot.user!.setPresence({
-				activities: [{ name: 'Noita' }],
-				status: 'online',
-			});
 			try {
 				const admin = discordBot.users.cache.get(discordAdmin);
 				await admin?.createDM();
@@ -465,7 +495,17 @@ async function main() {
 
 						return;
 					}
-					await storeImageData(broadcasterName, params[0], message);
+					const numImages = await storeImageData(broadcasterName, params[0], message);
+
+					try {
+						discordBot.user!.setActivity({
+							name: 'ImageGenerations',
+							state: `🖼️ ${numImages} images generated`,
+							type: ActivityType.Custom,
+						});
+					} catch (error) {
+						console.error('Discord error', error);
+					}
 
 					for (const channelId of discordChannels) {
 						const channel = discordBot.channels.cache.get(channelId);
