@@ -13,7 +13,6 @@ requiredEnvVars.forEach((envVar) => {
 type UserMeaningMap = Map<string, string>;
 const userMeaningMap: UserMeaningMap = new Map();
 
-
 class ChatCompletionError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -38,7 +37,7 @@ class ImageUploadError extends Error {
 async function getChatCompletion(OpenAi: OpenAI, messages: OpenAI.ChatCompletionMessageParam[]) {
 	try {
 		const completion = await OpenAi.chat.completions.create({
-			model: 'gpt-3.5-turbo-0613',
+			model: 'gpt-3.5-turbo-1106',
 			messages: messages,
 			temperature: 0.7,
 			max_tokens: 256,
@@ -60,6 +59,8 @@ async function getImageGeneration(OpenAi: OpenAI, prompt: string) {
 			response_format: 'url',
 		});
 
+		console.log(imageCompletion.data[0]);
+
 		return imageCompletion.data[0].url;
 	} catch (error: unknown) {
 		if (error instanceof Error) throw new ImageGenerationError(error.message);
@@ -78,13 +79,11 @@ function getUserMeaning(user: string) {
 	return userMeaningMap.get(user) || user;
 }
 
-
 // Image generator function
 async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: ImgurClient) {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
-
-	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
+	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username, as well as an assumption of the username's gender.`;
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -107,7 +106,7 @@ async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: I
 		},
 		{
 			role: 'user',
-			content: `Using your interpretation of the username, provide a detailed sentence of an epic scenario involving an avatar that a viewer would recognize as representing the username. Make sure to include relevant details like objects, people, a facial expression including eyes and mouth and the gesture of the avatar. Refer to the avatar by the name "the sweatling". Additionaly, in a second sentence, describe the background of the scene. Be determined and start the sentence with "The sweatling" and tie the scene to the username. Create classical comic panels with the story. Return a single paragraph.`,
+			content: `Using the analysis, create an epic and hyperbolic scenario that captures its essence but without mentioning the username. Avoid including names, hints, or references to specific real people or celebrities, while maintaining their gender and physique. Refer to the character in the scenario simply as sweatling. Start with a detailed sentence about the sweatling, whose actions and reactions embody the interpreted meaning of the username. Continue with a vivid description of the scene's background. Conclude with an expressive depiction of sweatling's facial expression. You must mention the fact that the sweatling is holding a heart-shaped item in one of their hands, which you'll describe. The scenario should be cohesive and maintain a consistent tone. Avoid engaging in or depicting suggestive content, fetishes, or any form of sexualization. When encountering usernames or topics with sexual connotations, focus on non-sexual aspects or elements that indirectly relate to the username without glorifying or emphasizing the sexualized part. Combine these elements into a concise paragraph, while using simple English, starting with the phrase 'The sweatling'.`,
 		},
 	];
 
@@ -118,9 +117,14 @@ async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: I
 
 	const sentenceResultSingleLine = sentenceResult.replace(/\n/g, '');
 
-	console.debug('Situation: ', sentenceResultSingleLine);
+	console.log('Situation: ', sentenceResultSingleLine);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: The sweatling is a simplified, pixelated representation of a character. It resembles a character from an 8-bit video game. The sweatling consists of a large blue circle for the head, with two large, round white eyes filled with smaller black circles to represent the pupils. The sweatling's skin is smooth and flawless. The sweatling is wearing an orange hoodie and holding a heart in its hand. Nearby is a creatively-designed sign that reads '${username}' in bold letters. ${sentenceResultSingleLine} The scene is illustrated in the style of watercolor.`;
+	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
+A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the letters '${username}' on them. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of pixel art, watercolor and anime styles.
+" DO NOT ALTER PROMPT AT ALL.`;
+
+	console.log('Image prompt: ', imagePrompt);
+
 	const imageData = await getImageGeneration(OpenAi, imagePrompt);
 	if (!imageData) throw new Error('No image generated');
 	console.debug(imageData);
@@ -141,7 +145,6 @@ async function exists(f: PathLike) {
 	}
 }
 
-
 async function getAppRootDir() {
 	let tries = 0;
 	let currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -161,7 +164,6 @@ async function getAppRootDir() {
 	return currentDir;
 }
 
-
 async function loadMeanings(filePath: PathLike) {
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
@@ -174,7 +176,6 @@ async function loadMeanings(filePath: PathLike) {
 	}
 }
 
-
 let appRootDir: string = '';
 let meaningsFilePath: string = '';
 
@@ -183,8 +184,6 @@ async function main() {
 	// @ts-expect-error ImgurClient is not typed properly
 	const Imgur = new imgur.ImgurClient({
 		clientId: process.env.IMGUR_CLIENT_ID,
-		// clientSecret: process.env.IMGUR_CLIENT_SECRET,
-		// refreshToken: process.env.IMGUR_REFRESH_TOKEN,
 	});
 
 	const username = process.argv[2];
@@ -194,7 +193,6 @@ async function main() {
 		meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
 
 		await loadMeanings(meaningsFilePath);
-
 
 		const image = await generateAndUploadImage(username, OpenAi, Imgur);
 		console.log(image);

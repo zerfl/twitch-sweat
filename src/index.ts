@@ -20,6 +20,9 @@ const requiredEnvVars = [
 	'TWITCH_REFRESH_TOKEN',
 	'IMAGES_PER_MINUTE',
 	'DISCORD_BOT_TOKEN',
+	'DISCORD_CHANNELS',
+	'DISCORD_ADMIN_USER_ID',
+	'MAX_RETRIES',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -117,96 +120,63 @@ async function generateImage(username: string) {
 	const result = { success: false, message: '' };
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
-	try {
-		console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
-		const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
-		const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
-			{
-				role: 'system',
-				content: analysisPrompt,
-			},
-			{
-				role: 'user',
-				content: perhapsUsernameWithMeaning,
-			},
-		];
-		const analysisResult = await getChatCompletion(analysisMessages);
-		if (!analysisResult) {
-			result.message = 'Failed to receive an analysis result.';
-			return result;
-		}
+	console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
+	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username, as well as an assumption of the username's gender in one concise sentence.`;
+	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
+		{
+			role: 'system',
+			content: analysisPrompt,
+		},
+		{
+			role: 'user',
+			content: perhapsUsernameWithMeaning,
+		},
+	];
+	const analysisResult = await getChatCompletion(analysisMessages);
+	console.log(`Analysed text: ${analysisResult}`);
 
-		console.log(`Analysed text: ${analysisResult}`);
-		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
-			...analysisMessages,
-			{
-				role: 'assistant',
-				content: analysisResult,
-			},
-			{
-				role: 'user',
-				content: `Craft one simple and short sentence that describes a situation that's influenced by your analysis. Prefer the correct spelling if any typos were encountered. Focus on creating a scenario where a character's actions or situation reflect the essence or meaning of the provided description. The mood of the situation is whimsical, hyperbolic and funny. You will refer to the character as sweatling. For context, the sweatling always has smooth skin, but you must not mention that. You'll write a second sentence visually describing the background of the situation. Return the two sentences as a single paragraph.`,
-			},
-		];
-		const sentenceResult = await getChatCompletion(generatePromptMessages);
-		if (!sentenceResult) {
-			result.message = 'Failed to receive a sentence result.';
-			return result;
-		}
-		console.log(`Generated sentence: ${sentenceResult}`);
+	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
+		...analysisMessages,
+		{
+			role: 'assistant',
+			content: analysisResult,
+		},
+		{
+			role: 'user',
+			content: `Using the analysis, create an epic and hyperbolic scenario that captures its essence but without mentioning the username. Avoid including names, hints, or references to specific real people or celebrities, while maintaining their gender and physique. Refer to the character in the scenario simply as sweatling. Start with a detailed sentence about the sweatling, whose actions and reactions embody the interpreted meaning of the username. Continue with a vivid description of the scene's background. Conclude with an expressive depiction of sweatling's facial expression. You must mention the fact that the sweatling is holding a heart-shaped item, which is related to the scenario, in one of their hands. The scenario should be cohesive and maintain a consistent tone. Avoid engaging in or depicting suggestive content, fetishes, or any form of sexualization. When encountering usernames or topics with sexual connotations, focus on non-sexual aspects or elements that indirectly relate to the username without glorifying or emphasizing the sexualized part. Combine these elements into a concise paragraph, while using simple English, starting with the phrase 'The sweatling'.`,
+		},
+	];
+	const sentenceResult = await getChatCompletion(generatePromptMessages);
+	console.log(`Generated sentence: ${sentenceResult}`);
 
-		const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: A vibrant blue sweatling, with a completely round head, wearing an orange hoodie and holding a heart in one hand. The sweatling's skin is smooth and flawless. Nearby is a sign that reads '${username}' in bold letters. ${sentenceResult} The style of the image features watercolor strokes and clear lines, complemented by pixel art for the sweatling. Achieve refined curves and intricate details. Employ a vibrant color palette with specific shades for highlights and shadows to provide depth. Ensure outlines are clean and dark for crisp definition. The composition should be coherent and polished, reflecting a modern take on the watercolor and pixel art style with a seamless visual flow.`;
-		const image = await dalleThrottle(() => {
-			console.log(`Creating image: ${imagePrompt}`);
-			return OpenAi.images.generate({
-				model: 'dall-e-3',
-				prompt: imagePrompt,
-				quality: 'standard',
-				size: '1024x1024',
-				response_format: 'url',
-			});
+	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
+A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the letters '${username}' on them. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
+" DO NOT ALTER THE PROMPT AT ALL.`;
+
+	const image = await dalleThrottle(() => {
+		console.log(`Creating image: ${imagePrompt}`);
+		return OpenAi.images.generate({
+			model: 'dall-e-3',
+			prompt: imagePrompt,
+			quality: 'standard',
+			size: '1024x1024',
+			response_format: 'url',
 		});
+	});
 
-		if (!image.data[0]?.url) {
-			console.error('No image URL received from OpenAI');
-			result.message = 'Failed to receive an image URL from the image generation service.';
-			return result;
-		}
+	console.log('Uploading image');
+	const url = image.data[0].url;
+	const uploadedImage = await Imgur.upload({
+		type: 'url',
+		image: url,
+		title: username,
+	});
 
-		console.log('Uploading image');
-		const url = image.data[0].url;
-		const uploadedImage = await Imgur.upload({
-			type: 'url',
-			image: url,
-			title: username,
-		});
+	console.log(`Image uploaded: ${uploadedImage.data.link}`);
+	result.success = true;
+	result.message = uploadedImage.data.link;
 
-		if (!uploadedImage.success) {
-			console.error('Imgur upload unsuccessful', uploadedImage);
-			result.message = 'Image upload failed due to an issue with the image hosting service.';
-			return result;
-		}
-
-		if (!uploadedImage.data.link) {
-			console.error('No link received from Imgur after upload');
-			result.message = 'Failed to retrieve the image link after upload.';
-			return result;
-		}
-
-		console.log(`Image uploaded: ${uploadedImage.data.link}`);
-
-		result.success = true;
-		result.message = uploadedImage.data.link;
-
-		return result;
-	} catch (error) {
-		result.message = 'There was an error, sorry!';
-		if (error instanceof Error) {
-			console.log('OpenAI error', error.message);
-		}
-
-		return result;
-	}
+	return result;
 }
 
 async function getAppRootDir() {
@@ -237,6 +207,37 @@ async function exists(f: PathLike) {
 	}
 }
 
+async function retryAsyncOperation<T, Args extends unknown[]>(
+	asyncOperation: (...args: Args) => Promise<T>,
+	maxRetries: number = 3,
+	...args: Args
+): Promise<T> {
+	let lastError: Error | null = null;
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			return await asyncOperation(...args);
+		} catch (error) {
+			if (error instanceof Error) {
+				lastError = error;
+			}
+			if (attempt < maxRetries) {
+				console.log(
+					`[ERROR] Attempt ${attempt + 1} failed, retrying...: ${error instanceof Error ? error.message : error}`,
+				);
+			} else {
+				console.log(
+					`[ERROR] Attempt ${attempt + 1} failed, no more retries left: ${
+						error instanceof Error ? error.message : error
+					}`,
+				);
+			}
+		}
+	}
+
+	throw lastError;
+}
+
 async function handleEventAndSendImageMessage(
 	twitchBot: Bot,
 	discordBot: DiscordClient,
@@ -250,7 +251,13 @@ async function handleEventAndSendImageMessage(
 	}
 	const verb = gifting ? 'gifting' : 'subscribing';
 
-	const imageResult = await generateImage(target);
+	let imageResult: { success: boolean; message: string };
+	try {
+		imageResult = await retryAsyncOperation(generateImage, maxRetries, target);
+	} catch (error) {
+		imageResult = { success: false, message: 'Error' };
+	}
+
 	if (!imageResult.success) {
 		await messagesThrottle(() => {
 			return twitchBot.say(
@@ -269,7 +276,7 @@ async function handleEventAndSendImageMessage(
 			type: ActivityType.Custom,
 		});
 	} catch (error) {
-		console.error('Discord error', error);
+		console.log('Discord error', error);
 	}
 
 	for (const channelId of discordChannels) {
@@ -326,7 +333,7 @@ async function loadCheers(filePath: PathLike) {
 			userCheerMap.set(broadcaster, userMap);
 		});
 	} catch (error) {
-		console.error(`Error reading cheers count file at ${filePath}`, error);
+		console.log(`Error reading cheers count file at ${filePath}`, error);
 	}
 }
 
@@ -338,7 +345,7 @@ async function loadMeanings(filePath: PathLike) {
 			userMeaningMap.set(user, meaning);
 		});
 	} catch (error) {
-		console.error(`Error reading meanings file at ${filePath}`, error);
+		console.log(`Error reading meanings file at ${filePath}`, error);
 	}
 }
 
@@ -391,11 +398,10 @@ async function main() {
 				await admin?.createDM();
 				console.log('Discord admin channel ready');
 			} catch (error) {
-				console.error('Discord error', error);
+				console.log('Discord error', error);
 			}
 		});
 		discordBot.on(Events.MessageCreate, async (message) => {
-			console.log(`Discord message received: ${message.content}`);
 			const admin = discordBot.users.cache.get(discordAdmin) ?? (await discordBot.users.fetch(discordAdmin));
 
 			if (message.guild !== null) {
@@ -411,6 +417,7 @@ async function main() {
 				return;
 			}
 
+			console.log(`Discord message received: ${message.content}`);
 			const [command, ...params] = message.content.split(' ');
 			if (command === '!announce') {
 				const announcement = params.join(' ');
@@ -435,7 +442,7 @@ async function main() {
 		});
 
 		discordBot.login(process.env.DISCORD_BOT_TOKEN!).catch((error) => {
-			console.error('Discord bot login failed', error);
+			console.log('Discord bot login failed', error);
 		});
 
 		let tokenData: AccessToken = {
@@ -450,7 +457,7 @@ async function main() {
 			try {
 				tokenData = JSON.parse(await fs.readFile(tokenFilePath, 'utf-8'));
 			} catch (error) {
-				console.error('Error reading token file, using default values.', error);
+				console.log('Error reading token file, using default values.', error);
 			}
 		}
 
@@ -487,15 +494,21 @@ async function main() {
 						return;
 					}
 
-					const { success, message } = await generateImage(target);
-					if (!success) {
+					let imageResult: { success: boolean; message: string };
+					try {
+						imageResult = await retryAsyncOperation(generateImage, maxRetries, target);
+					} catch (error) {
+						imageResult = { success: false, message: 'Error' };
+					}
+
+					if (!imageResult.success) {
 						await messagesThrottle(() => {
-							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you: ${message}`, 500));
+							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you.`, 500));
 						});
 
 						return;
 					}
-					const numImages = await storeImageData(broadcasterName, params[0], message);
+					const numImages = await storeImageData(broadcasterName, params[0], imageResult.message);
 
 					try {
 						discordBot.user!.setActivity({
@@ -504,7 +517,7 @@ async function main() {
 							type: ActivityType.Custom,
 						});
 					} catch (error) {
-						console.error('Discord error', error);
+						console.log('Discord error', error);
 					}
 
 					for (const channelId of discordChannels) {
@@ -512,7 +525,7 @@ async function main() {
 						if (channel && channel.isTextBased()) {
 							try {
 								await channel.send(
-									`@${userName} requested generation for @${target}. Here's the sweatling: ${message}`,
+									`@${userName} requested generation for @${target}. Here's the sweatling: ${imageResult.message}`,
 								);
 							} catch (error) {
 								console.log(`Error sending message to channel ${channelId}`, error);
@@ -521,7 +534,7 @@ async function main() {
 					}
 
 					await messagesThrottle(() => {
-						return say(`@${userName} Here's your image: ${message}`);
+						return say(`@${userName} Here's your image: ${imageResult.message}`);
 					});
 				}),
 				createBotCommand('setmeaning', async (params, { userName, say }) => {
@@ -644,12 +657,12 @@ async function main() {
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
-			console.error('Invalid tokens, please check your environment variables');
+			console.log('Invalid tokens, please check your environment variables');
 			return;
 		} else if (error instanceof Error) {
 			console.trace(error);
 		} else {
-			console.error(error);
+			console.log(error);
 		}
 	}
 }
@@ -678,6 +691,8 @@ const messagesThrottle = throttledQueue(20, 30 * 1000, true);
  * Tier 5: 50 requests per minute
  */
 const imagesPerMinute = parseInt(process.env.IMAGES_PER_MINUTE!, 10);
+const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
+
 const dalleThrottle = throttledQueue(imagesPerMinute, 60 * 1000, true);
 
 try {
