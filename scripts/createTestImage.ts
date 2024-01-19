@@ -83,7 +83,7 @@ function getUserMeaning(user: string) {
 async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: ImgurClient) {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
-	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Consider case sensitivity. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username, as well as an assumption of the username's gender.`;
+	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -106,7 +106,21 @@ async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: I
 		},
 		{
 			role: 'user',
-			content: `Using the analysis, create an epic and hyperbolic scenario that captures its essence but without mentioning the username. Avoid including names, hints, or references to specific real people or celebrities, while maintaining their gender and physique. Refer to the character in the scenario simply as sweatling. Start with a detailed sentence about the sweatling, whose actions and reactions embody the interpreted meaning of the username. Continue with a vivid description of the scene's background. Conclude with an expressive depiction of sweatling's facial expression. You must mention the fact that the sweatling is holding a heart-shaped item in one of their hands, which you'll describe. The scenario should be cohesive and maintain a consistent tone. Avoid engaging in or depicting suggestive content, fetishes, or any form of sexualization. When encountering usernames or topics with sexual connotations, focus on non-sexual aspects or elements that indirectly relate to the username without glorifying or emphasizing the sexualized part. Combine these elements into a concise paragraph, while using simple English, starting with the phrase 'The sweatling'.`,
+			content: `Create an epic and hyperbolic scenario that captures the essence of the username without directly mentioning it. Follow these steps to create the scenario:
+- Avoid using names, hints, or references to specific real people or celebrities, while maintaining their gender and physique in your depiction.
+- Refer to the main character in your scenario as 'sweatling.'. Avoid including the username directly in the scenario.
+- Start with a detailed sentence about the sweatling, ensuring their actions and reactions embody the interpreted meaning of the username.
+- Dress the sweatling in an outfit with orange as the primary color, reflecting the scenario's tone and the username's essence.
+- Provide a vivid description of the scene's background, focusing on details that enhance the narrative.
+- Include an expressive depiction of the sweatling's facial expression.
+- Concentrate on describing a single, static snapshot of the scenario, akin to capturing a photograph, without depicting any progression or sequence of events.
+- Include a heart-shaped item in the scenario, which is crucial to the narrative. Describe this item in detail, ensuring it is based on a direct and explicit interpretation of the username or its meaning, making it a pivotal symbol in the scenario.
+- Choose the heart-shaped item based on a direct and explicit interpretation of the username or its meaning, making it a pivotal symbol in the scenario.
+- Maintain a cohesive and consistent tone throughout the scenario.
+- Steer clear of suggestive content, fetishes, or any form of sexualization, especially in usernames or topics with sexual connotations.
+- Focus on non-sexual aspects or elements that indirectly relate to the username without emphasizing the sexualized part.
+
+Complete the task by crafting one cohesive paragraph that seamlessly integrates all the above elements, adhering closely to the instructions provided and using simple English, starting with the phrase 'The sweatling'`,
 		},
 	];
 
@@ -120,8 +134,8 @@ async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: I
 	console.log('Situation: ', sentenceResultSingleLine);
 
 	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
-A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the letters '${username}' on them. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of pixel art, watercolor and anime styles.
-" DO NOT ALTER PROMPT AT ALL.`;
+A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. A sign bearing the bold letters '${username}' is prominently featured in the vicinity. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
+" DO NOT ALTER THE PROMPT AT ALL.`;
 
 	console.log('Image prompt: ', imagePrompt);
 

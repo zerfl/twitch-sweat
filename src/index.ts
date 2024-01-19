@@ -121,7 +121,7 @@ async function generateImage(username: string) {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
 	console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
-	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username, as well as an assumption of the username's gender in one concise sentence.`;
+	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -150,7 +150,7 @@ async function generateImage(username: string) {
 	console.log(`Generated sentence: ${sentenceResult}`);
 
 	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
-A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the letters '${username}' on them. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
+A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. A sign bearing the bold letters '${username}' is prominently featured in the vicinity. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
 " DO NOT ALTER THE PROMPT AT ALL.`;
 
 	const image = await dalleThrottle(() => {
@@ -171,6 +171,11 @@ A vibrant blue sweatling, with a completely round head and smooth skin is wearin
 		image: url,
 		title: username,
 	});
+
+	if (!uploadedImage.success) {
+		console.log(`Image upload failed: ${uploadedImage.status}`);
+		return { success: false, message: 'Error' };
+	}
 
 	console.log(`Image uploaded: ${uploadedImage.data.link}`);
 	result.success = true;
@@ -477,7 +482,7 @@ async function main() {
 			channels: twitchChannels,
 			commands: [
 				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-					if (!['partyhorst', 'dunkorslam'].includes(userName.toLowerCase())) {
+					if (!['partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
 						return;
 					}
 
@@ -537,8 +542,8 @@ async function main() {
 						return say(`@${userName} Here's your image: ${imageResult.message}`);
 					});
 				}),
-				createBotCommand('setmeaning', async (params, { userName, say }) => {
-					if (!['myndzi', 'dunkorslam'].includes(userName.toLowerCase())) {
+				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
+					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
 						return;
 					}
 
@@ -559,8 +564,8 @@ async function main() {
 						return say(`@${userName} Meaning for ${user} set.`);
 					});
 				}),
-				createBotCommand('delmeaning', async (params, { userName, say }) => {
-					if (!['myndzi', 'dunkorslam'].includes(userName.toLowerCase())) {
+				createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
+					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
 						return;
 					}
 
