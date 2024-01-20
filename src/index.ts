@@ -60,6 +60,10 @@ const Imgur = new imgur.ImgurClient({
 	clientId: process.env.IMGUR_CLIENT_ID,
 });
 
+async function delay(milliseconds = 1000) {
+	await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
 	try {
 		await fs.access(filePath);
@@ -613,6 +617,12 @@ async function main() {
 
 					await messagesThrottle(() => {
 						return say(`@${userName} You will now receive AI sweatlings`);
+					});
+				}),
+				createBotCommand('ping', async (params, { userName, say }) => {
+					await delay(1000);
+					await messagesThrottle(() => {
+						return say(`@${userName} pong`);
 					});
 				}),
 			],
