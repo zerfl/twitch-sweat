@@ -23,6 +23,8 @@ const requiredEnvVars = [
 	'DISCORD_CHANNELS',
 	'DISCORD_ADMIN_USER_ID',
 	'MAX_RETRIES',
+	'OPENAI_ANALYZER_PROMPT',
+	'OPENAI_SCENARIO_PROMPT',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -125,11 +127,10 @@ async function generateImage(username: string) {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
 	console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
-	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: analysisPrompt,
+			content: analyzerPrompt,
 		},
 		{
 			role: 'user',
@@ -147,7 +148,7 @@ async function generateImage(username: string) {
 		},
 		{
 			role: 'user',
-			content: `Using the analysis, create an epic and hyperbolic scenario that captures its essence but without mentioning the username. Avoid including names, hints, or references to specific real people or celebrities, while maintaining their gender and physique. Refer to the character in the scenario simply as sweatling. Start with a detailed sentence about the sweatling, whose actions and reactions embody the interpreted meaning of the username. Continue with a vivid description of the scene's background. Conclude with an expressive depiction of sweatling's facial expression. You must mention the fact that the sweatling is holding a heart-shaped item, which is related to the scenario, in one of their hands. The scenario should be cohesive and maintain a consistent tone. Avoid engaging in or depicting suggestive content, fetishes, or any form of sexualization. When encountering usernames or topics with sexual connotations, focus on non-sexual aspects or elements that indirectly relate to the username without glorifying or emphasizing the sexualized part. Combine these elements into a concise paragraph, while using simple English, starting with the phrase 'The sweatling'.`,
+			content: scenarioPrompt,
 		},
 	];
 	const sentenceResult = await getChatCompletion(generatePromptMessages);
@@ -693,6 +694,8 @@ const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
+const analyzerPrompt = process.env.OPENAI_ANALYZER_PROMPT!;
+const scenarioPrompt = process.env.OPENAI_SCENARIO_PROMPT!;
 const userCheerMap: UserCheerMap = new Map();
 const userMeaningMap: UserMeaningMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
