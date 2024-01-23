@@ -111,7 +111,7 @@ async function storeImageData(broadcaster: string, user: string, image: string) 
 async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) {
 	const completion = await OpenAi.chat.completions.create({
 		messages: messages,
-		model: 'gpt-3.5-turbo-1106',
+		model: 'gpt-3.5-turbo-0613',
 		temperature: 0.7,
 		max_tokens: 256,
 	});
@@ -170,6 +170,7 @@ A vibrant blue sweatling, with a completely round head and smooth skin is wearin
 	});
 
 	console.log('Uploading image');
+	console.log('Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url;
 	const uploadedImage = await Imgur.upload({
 		type: 'url',

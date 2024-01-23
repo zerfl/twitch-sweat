@@ -15,4 +15,4 @@ RUN npm install
 COPY . .
 
 # Run the TypeScript file directly using tsx
-CMD [ "npx", "tsx", "src/index.ts" ]
+CMD [ "node", "--import", "tsx", "src/index.ts" ]
