@@ -155,7 +155,7 @@ async function generateImage(username: string) {
 	console.log(`Generated sentence: ${sentenceResult}`);
 
 	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
-A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. A sign bearing the bold letters '${username}' is prominently featured in the vicinity. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
+A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the bold letters '${username}' on it. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines. 
 " DO NOT ALTER THE PROMPT AT ALL.`;
 
 	const image = await dalleThrottle(() => {
