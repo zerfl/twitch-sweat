@@ -147,7 +147,7 @@ async function generateImage(username: string) {
 	const sentenceResult = await getChatCompletion(generatePromptMessages);
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `A vibrant blue sweatling, with a completely round earless head and smooth skin is wearing an orange hoodie. Nearby is a sign with bold letters '${username}' on it. The overall aesthetic for this vibrant scene is a digital painting in watercolor style with soft hues blending seamlessly. ${sentenceResult}`;
+	const imagePrompt = `A vibrant blue sweatling, with a completely round circle as a head and smooth skin is wearing an orange hoodie. Nearby is a sign with bold letters '${username}' on it, that's very important. The overall aesthetic for this vibrant scene is a digital painting in watercolor style with soft hues blending seamlessly. ${sentenceResult}`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
@@ -435,12 +435,25 @@ async function main() {
 					}
 				}
 			} else if (command === '!generateimage') {
-				// loop through all params and generate images for each
+				const broadcasterName = params[0];
+				params.splice(0, 1);
+
 				for (const param of params) {
 					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
+					}
+					const numImages = await storeImageData(broadcasterName, param, imageResult.message);
+
+					try {
+						discordBot.user!.setActivity({
+							name: 'ImageGenerations',
+							state: `🖼️ ${numImages} images generated`,
+							type: ActivityType.Custom,
+						});
+					} catch (error) {
+						console.log('Discord error', error);
 					}
 
 					for (const channelId of discordChannels) {
