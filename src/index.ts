@@ -2,29 +2,31 @@ import 'dotenv/config';
 import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
 import OpenAI from 'openai';
-import imgur from 'imgur';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
 import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials } from 'discord.js';
 import throttledQueue from 'throttled-queue';
 import { IgnoreListManager } from './utils/IgnoreListManager';
+import { CloudflareUploader } from './utils/CloudflareUploader';
 
 const requiredEnvVars = [
-	'OPENAI_API_KEY',
-	'IMGUR_CLIENT_ID',
 	'TWITCH_CLIENT_ID',
 	'TWITCH_CLIENT_SECRET',
 	'TWITCH_CHANNELS',
 	'TWITCH_ACCESS_TOKEN',
 	'TWITCH_REFRESH_TOKEN',
-	'IMAGES_PER_MINUTE',
+	'OPENAI_API_KEY',
+	'OPENAI_IMAGES_PER_MINUTE',
+	'OPENAI_ANALYZER_PROMPT',
+	'OPENAI_SCENARIO_PROMPT',
 	'DISCORD_BOT_TOKEN',
 	'DISCORD_CHANNELS',
 	'DISCORD_ADMIN_USER_ID',
 	'MAX_RETRIES',
-	'OPENAI_ANALYZER_PROMPT',
-	'OPENAI_SCENARIO_PROMPT',
+	'CLOUDFLARE_ACCOUNT_ID',
+	'CLOUDFLARE_API_TOKEN',
+	'CLOUDFLARE_IMAGES_URL',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -52,15 +54,6 @@ type BroadcasterImages = {
 type UserMap = Map<string, number>;
 type UserCheerMap = Map<string, UserMap>;
 type UserMeaningMap = Map<string, string>;
-
-const OpenAi = new OpenAI({
-	apiKey: process.env.OPENAI_API_KEY,
-});
-
-// @ts-expect-error imgur types are outdated
-const Imgur = new imgur.ImgurClient({
-	clientId: process.env.IMGUR_CLIENT_ID,
-});
 
 async function delay(milliseconds = 1000) {
 	await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -126,7 +119,7 @@ async function generateImage(username: string) {
 	const result = { success: false, message: '' };
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
-	console.log(`Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
+	console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -138,7 +131,7 @@ async function generateImage(username: string) {
 		},
 	];
 	const analysisResult = await getChatCompletion(analysisMessages);
-	console.log(`Analysed text: ${analysisResult}`);
+	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
 
 	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
 		...analysisMessages,
@@ -152,14 +145,12 @@ async function generateImage(username: string) {
 		},
 	];
 	const sentenceResult = await getChatCompletion(generatePromptMessages);
-	console.log(`Generated sentence: ${sentenceResult}`);
+	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
-A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. Nearby is a sign with the bold letters '${username}' on it. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines. 
-" DO NOT ALTER THE PROMPT AT ALL.`;
+	const imagePrompt = `A vibrant blue sweatling, with a completely round earless head and smooth skin is wearing an orange hoodie. Nearby is a sign with bold letters '${username}' on it. The overall aesthetic for this vibrant scene is a digital painting in watercolor style with soft hues blending seamlessly. ${sentenceResult}`;
 
 	const image = await dalleThrottle(() => {
-		console.log(`Creating image: ${imagePrompt}`);
+		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
 		return OpenAi.images.generate({
 			model: 'dall-e-3',
 			prompt: imagePrompt,
@@ -169,23 +160,19 @@ A vibrant blue sweatling, with a completely round head and smooth skin is wearin
 		});
 	});
 
-	console.log('Uploading image');
-	console.log('Revised prompt', image.data[0].revised_prompt);
-	const url = image.data[0].url;
-	const uploadedImage = await Imgur.upload({
-		type: 'url',
-		image: url,
-		title: username,
-	});
+	console.log(perhapsUsernameWithMeaning, 'Uploading image');
+	console.log(perhapsUsernameWithMeaning, 'Revised prompt', image.data[0].revised_prompt);
+	const url = image.data[0].url!;
+	const uploadedImage = await cfUploader.fromURL(url);
 
 	if (!uploadedImage.success) {
-		console.log(`Image upload failed: ${uploadedImage.status}`);
+		console.log(perhapsUsernameWithMeaning, `Image upload failed: ${uploadedImage.message}`);
 		return { success: false, message: 'Error' };
 	}
 
-	console.log(`Image uploaded: ${uploadedImage.data.link}`);
+	console.log(perhapsUsernameWithMeaning, `Image uploaded: ${uploadedImage.result.id}`);
 	result.success = true;
-	result.message = uploadedImage.data.link;
+	result.message = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}`;
 
 	return result;
 }
@@ -447,6 +434,28 @@ async function main() {
 						}
 					}
 				}
+			} else if (command === '!generateimage') {
+				// loop through all params and generate images for each
+				for (const param of params) {
+					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param);
+					if (!imageResult.success) {
+						await message.reply(`Unable to generate image for ${param}`);
+						continue;
+					}
+
+					for (const channelId of discordChannels) {
+						const channel = discordBot.channels.cache.get(channelId);
+						if (channel && channel.isTextBased()) {
+							try {
+								await channel.send(
+									`Thank you @${param} for subscribing. Here's your sweatling: ${imageResult.message}`,
+								);
+							} catch (error) {
+								console.log(`Error sending message to channel ${channelId}`, error);
+							}
+						}
+					}
+				}
 			} else {
 				await message.reply(`Unknown command.`);
 			}
@@ -692,6 +701,10 @@ const meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
 const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
+const OpenAi = new OpenAI({
+	apiKey: process.env.OPENAI_API_KEY,
+});
+const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
@@ -701,6 +714,9 @@ const userCheerMap: UserCheerMap = new Map();
 const userMeaningMap: UserMeaningMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
+const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
+const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
+
 /*
  * DALL-E throttling
  * Tier 1: 5 requests per minute
@@ -709,9 +725,6 @@ const messagesThrottle = throttledQueue(20, 30 * 1000, true);
  * Tier 4: 15 requests per minute
  * Tier 5: 50 requests per minute
  */
-const imagesPerMinute = parseInt(process.env.IMAGES_PER_MINUTE!, 10);
-const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
-
 const dalleThrottle = throttledQueue(imagesPerMinute, 60 * 1000, true);
 
 try {
