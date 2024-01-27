@@ -1,9 +1,9 @@
 import 'dotenv/config';
 import OpenAI from 'openai';
-import imgur, { ImgurClient } from 'imgur';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PathLike, promises as fs } from 'fs';
+import { CloudflareUploader } from '../src/utils/CloudflareUploader';
 
 const requiredEnvVars = ['OPENAI_API_KEY', 'IMGUR_CLIENT_ID', 'IMGUR_REFRESH_TOKEN', 'IMGUR_CLIENT_SECRET'];
 requiredEnvVars.forEach((envVar) => {
@@ -27,23 +27,16 @@ class ImageGenerationError extends Error {
 	}
 }
 
-class ImageUploadError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = 'ImageUploadError';
-	}
-}
-
 async function getChatCompletion(OpenAi: OpenAI, messages: OpenAI.ChatCompletionMessageParam[]) {
 	try {
 		const completion = await OpenAi.chat.completions.create({
 			model: 'gpt-3.5-turbo-1106',
 			messages: messages,
-			temperature: 0.7,
+			temperature: 1,
 			max_tokens: 256,
 		});
 
-		return completion.choices[0].message.content;
+		return completion.choices[0]?.message.content;
 	} catch (error: unknown) {
 		if (error instanceof Error) throw new ChatCompletionError(error.message);
 	}
@@ -61,17 +54,9 @@ async function getImageGeneration(OpenAi: OpenAI, prompt: string) {
 
 		console.log(imageCompletion.data[0]);
 
-		return imageCompletion.data[0].url;
+		return imageCompletion.data[0]?.url;
 	} catch (error: unknown) {
 		if (error instanceof Error) throw new ImageGenerationError(error.message);
-	}
-}
-
-async function getImageUpload(Imgur: ImgurClient, imageUrl: string, username: string) {
-	try {
-		return await Imgur.upload({ type: 'url', image: imageUrl, title: username });
-	} catch (error: unknown) {
-		if (error instanceof Error) throw new ImageUploadError(error.message);
 	}
 }
 
@@ -80,14 +65,45 @@ function getUserMeaning(user: string) {
 }
 
 // Image generator function
-async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: ImgurClient) {
+async function generateAndUploadImage(username: string, OpenAi: OpenAI) {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
-	const analysisPrompt = `Analyze the provided text to automatically identify words in them. You'll be given a unique username. Always provide a useful interpretation or insight into the word's possible meaning and structure. Always return a single and concise sentence that encapsulates the potential meaning and structure of the username.`;
+	const analysisPrompt = `Analyze the given username by dissecting it into distinct elements. Investigate each segment for linguistic roots across various languages, including English and others, as well as common abbreviations, cultural references, and numerical significance globally. Provide an literal and insightful interpretation that explores the potential meanings, origins, and structure of the username, drawing from a diverse linguistic and cultural spectrum. Aim to deliver a concise and comprehensive sentence that encapsulates these multifaceted aspects, offering a deep and broad understanding of the username's possible significance and composition. Try to determine a gender based on the username and analysis.
+
+Based on your best interpretation of the username, create a character card that a viewer would recognize as representing the username, using the following template:
+\`\`\`
+Username:
+Possible gender:
+Characteristics:
+Location:
+Literal meaning:
+Outfit:
+Interests:
+Facial expression:
+\`\`\``;
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
 			content: analysisPrompt,
+		},
+		{
+			role: 'user',
+			content: 'partyhorst',
+		},
+		{
+			role: 'assistant',
+			content: `This username "partyhorst" seems to be a combination of "party" and the name "Horst" which is of German origin and means "man of the forest," often associated with strength and masculinity. The word "party" typically refers to a festive gathering or event. The juxtaposition of "party" and "Horst" creates an interesting contrast between lively celebration and a strong, grounded presence, perhaps indicative of a dynamic and spirited individual with a solid foundation. The use of "horst" could also be a nod to its geological meaning, referring to a raised area of land, which could symbolize elevation or standing out.
+
+\`\`\`
+Username: partyhorst
+Possible gender: male
+Characteristics: fun-loving, outgoing, energetic, socialising, confident, masculine
+Location: at a party
+Literal meaning: a person loving to party
+Outfit: vibrant, bold, flashy, fun patterns
+Interests: partying, lively dancing, throwing a party, high-fiving
+Facial expression: happy, cheerful, laughing
+\`\`\``,
 		},
 		{
 			role: 'user',
@@ -106,21 +122,16 @@ async function generateAndUploadImage(username: string, OpenAi: OpenAI, Imgur: I
 		},
 		{
 			role: 'user',
-			content: `Create an epic and hyperbolic scenario that captures the essence of the username without directly mentioning it. Follow these steps to create the scenario:
-- Avoid using names, hints, or references to specific real people or celebrities, while maintaining their gender and physique in your depiction.
-- Refer to the main character in your scenario as 'sweatling.'. Avoid including the username directly in the scenario.
-- Start with a detailed sentence about the sweatling, ensuring their actions and reactions embody the interpreted meaning of the username.
-- Dress the sweatling in an outfit with orange as the primary color, reflecting the scenario's tone and the username's essence.
-- Provide a vivid description of the scene's background, focusing on details that enhance the narrative.
-- Include an expressive depiction of the sweatling's facial expression.
-- Concentrate on describing a single, static snapshot of the scenario, akin to capturing a photograph, without depicting any progression or sequence of events.
-- Include a heart-shaped item in the scenario, which is crucial to the narrative. Describe this item in detail, ensuring it is based on a direct and explicit interpretation of the username or its meaning, making it a pivotal symbol in the scenario.
-- Choose the heart-shaped item based on a direct and explicit interpretation of the username or its meaning, making it a pivotal symbol in the scenario.
-- Maintain a cohesive and consistent tone throughout the scenario.
-- Steer clear of suggestive content, fetishes, or any form of sexualization, especially in usernames or topics with sexual connotations.
-- Focus on non-sexual aspects or elements that indirectly relate to the username without emphasizing the sexualized part.
+			content: `Craft an exaggerated narrative that reflects the literal interpretation of the given username analysis, while concealing the username itself. In this narrative:
 
-Complete the task by crafting one cohesive paragraph that seamlessly integrates all the above elements, adhering closely to the instructions provided and using simple English, starting with the phrase 'The sweatling'`,
+Include a heart-shaped object that symbolically resonates with the username's literal interpretation.
+Refer to the main character as 'sweatling' and include their gender.
+Focus on non-sexual aspects or indirect connections. 
+
+Begin with a detailed yet concise description of the sweatling, whose actions and surroundings vividly embody the username's literal meaning.
+Ensure the background scene is vibrant and thematically aligned with the literal interpretation of the username.
+Conclude with a striking portrayal of the sweatling's facial expression.
+Start the paragraph with 'The sweatling' and use simple English for clarity.`,
 		},
 	];
 
@@ -133,9 +144,7 @@ Complete the task by crafting one cohesive paragraph that seamlessly integrates 
 
 	console.log('Situation: ', sentenceResultSingleLine);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. "
-A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. A sign bearing the bold letters '${username}' is prominently featured in the vicinity. ${sentenceResult} The overall aesthetic for this vibrant scene combines elements of watercolor, pixel art, and anime styles with clear outlines.
-" DO NOT ALTER THE PROMPT AT ALL.`;
+	const imagePrompt = `A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie (ALL OF IT IS EXTREMELY IMPORTANT!). Nearby is a sign with the bold letters '${username}' on it. The overall aesthetic for this vibrant scene is in watercolor style with soft hues blending seamlessly and clear outlines. ${sentenceResult}`;
 
 	console.log('Image prompt: ', imagePrompt);
 
@@ -143,11 +152,11 @@ A vibrant blue sweatling, with a completely round head and smooth skin is wearin
 	if (!imageData) throw new Error('No image generated');
 	console.debug(imageData);
 
-	const uploadedImage = await getImageUpload(Imgur, imageData, username);
-	if (!uploadedImage || !uploadedImage.data.link) throw new Error('Image upload failed');
-	console.debug(uploadedImage.data.link);
+	const uploadedImage = await uploader.fromURL(imageData);
+	if (!uploadedImage.success) throw new Error('Image upload failed');
+	console.debug(uploadedImage);
 
-	return uploadedImage.data.link;
+	return uploadedImage.result.id;
 }
 
 async function exists(f: PathLike) {
@@ -195,10 +204,6 @@ let meaningsFilePath: string = '';
 
 async function main() {
 	const OpenAi = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-	// @ts-expect-error ImgurClient is not typed properly
-	const Imgur = new imgur.ImgurClient({
-		clientId: process.env.IMGUR_CLIENT_ID,
-	});
 
 	const username = process.argv[2];
 	if (!username) return;
@@ -208,11 +213,18 @@ async function main() {
 
 		await loadMeanings(meaningsFilePath);
 
-		const image = await generateAndUploadImage(username, OpenAi, Imgur);
-		console.log(image);
+		const image = await generateAndUploadImage(username, OpenAi);
+		const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${image}.png`;
+		console.log(finalUrl);
 	} catch (error: unknown) {
 		if (error instanceof Error) console.error(error.message);
 	}
 }
 
-await main();
+let uploader: CloudflareUploader;
+try {
+	uploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
+	await main();
+} finally {
+	process.exit(0);
+}

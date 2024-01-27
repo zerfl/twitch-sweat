@@ -1,5 +1,6 @@
 import FormData from 'form-data';
 import axios from 'axios';
+import { nanoid } from 'nanoid';
 
 interface Response {
 	error: boolean;
@@ -51,6 +52,7 @@ export class CloudflareUploader {
 		return new Promise((resolve, reject) => {
 			const formData = new FormData();
 			formData.append('url', url);
+			formData.append('id', nanoid(10));
 			this.sendRequest(formData)
 				.then((data) => {
 					resolve(data);

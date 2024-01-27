@@ -147,7 +147,7 @@ async function generateImage(username: string) {
 	const sentenceResult = await getChatCompletion(generatePromptMessages);
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `A vibrant blue sweatling, with a completely round circle as a head and smooth skin is wearing an orange hoodie. Nearby is a sign with bold letters '${username}' on it, that's very important. The overall aesthetic for this vibrant scene is a digital painting in watercolor style with soft hues blending seamlessly. ${sentenceResult}`;
+	const imagePrompt = `A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie (ALL OF IT IS EXTREMELY IMPORTANT!). Nearby is a sign with the bold letters '${username}' on it. The overall aesthetic for this vibrant scene is in watercolor style with soft hues blending seamlessly and clear outlines. ${sentenceResult}`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
@@ -170,9 +170,10 @@ async function generateImage(username: string) {
 		return { success: false, message: 'Error' };
 	}
 
-	console.log(perhapsUsernameWithMeaning, `Image uploaded: ${uploadedImage.result.id}`);
+	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
+	console.log(perhapsUsernameWithMeaning, `Image uploaded: ${finalUrl}`);
 	result.success = true;
-	result.message = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}`;
+	result.message = finalUrl;
 
 	return result;
 }
