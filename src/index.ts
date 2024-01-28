@@ -147,7 +147,10 @@ async function generateImage(username: string) {
 	const sentenceResult = await getChatCompletion(generatePromptMessages);
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie (ALL OF IT IS EXTREMELY IMPORTANT!). Nearby is a sign with the bold letters '${username}' on it. The overall aesthetic for this vibrant scene is in watercolor style with soft hues blending seamlessly and clear outlines. ${sentenceResult}`;
+	const imagePrompt = `- A vibrant blue sweatling, with an orb-like round head and smooth skin, white eyes, and wearing an orange hoodie. It is EXTREMELY IMPORTANT that you do not deviate from this description. Call it a sweatling, not a creature. Imagine a shiny blue orb as a head.
+- Generate a nearby sign with the bold letters '${username}' on it.
+- The overall aesthetic for this vibrant scene is a digital illustration style with drawn lines, with soft hues blending seamlessly and clear outlines.
+- The scene for the image is as follows: ${sentenceResult}`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
