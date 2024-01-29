@@ -123,10 +123,10 @@ async function generateImage(username: string) {
 - Choose an appropriate overall aesthetic for this vibrant scene. It should showcase clear outlines, a drawn style with illustrations.
 - Create an exaggerated scene and a vivid background featuring the sweatling, that incorporates the literal meaning of the username '${perhapsUsernameWithMeaning}'.
 - Always include a heart-shaped item in the scene.
-- Always assume the gender of the sweatling, given its username. You may only choose between male and female.
 - Always include a description for the sweatling's facial expressions and posture.
 - Avoid any sexualization or suggestive content. If the username suggests such themes, focus on non-sexual aspects or indirect connections.
-- You may change the outfit of the sweatling, excluding the color orange, but only when the literal meaning of the username implies something more relevant.`;
+- You may change the outfit of the sweatling, excluding the color orange, but only when the literal meaning of the username implies something more relevant.
+- The image tells a compelling story of the username '${perhapsUsernameWithMeaning}'. The main focus is the literal meaning of the provided username.`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
