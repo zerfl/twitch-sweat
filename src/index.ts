@@ -118,39 +118,15 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 async function generateImage(username: string) {
 	const result = { success: false, message: '' };
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
-
-	console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
-	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
-		{
-			role: 'system',
-			content: analyzerPrompt,
-		},
-		{
-			role: 'user',
-			content: perhapsUsernameWithMeaning,
-		},
-	];
-	const analysisResult = await getChatCompletion(analysisMessages);
-	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
-
-	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
-		...analysisMessages,
-		{
-			role: 'assistant',
-			content: analysisResult,
-		},
-		{
-			role: 'user',
-			content: scenarioPrompt,
-		},
-	];
-	const sentenceResult = await getChatCompletion(generatePromptMessages);
-	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
-
-	const imagePrompt = `- A vibrant blue sweatling, with an orb-like round head and smooth skin, white eyes, and wearing an orange hoodie. It is EXTREMELY IMPORTANT that you do not deviate from this description. Call it a sweatling, not a creature. Imagine a shiny blue orb as a head.
-- Generate a nearby sign with the bold letters '${username}' on it.
-- The overall aesthetic for this vibrant scene is a digital illustration style with drawn lines, with soft hues blending seamlessly and clear outlines.
-- The scene for the image is as follows: ${sentenceResult}`;
+	const imagePrompt = `- A vibrant blue sweatling, with an orb-like round head and smooth skin wearing an orange hoodie. It is EXTREMELY IMPORTANT that you do not deviate from this description. Call it a sweatling, not a creature. Imagine a shiny blue orb as a head.
+- Generate a nearby sign with the bold and English letters '${username}' on it. This is a MUST. You MUST NOT DEVIATE from this instruction.
+- Choose an appropriate overall aesthetic for this vibrant scene. It should showcase clear outlines, a drawn style with illustrations.
+- Create an exaggerated scene and a vivid background featuring the sweatling, that incorporates the literal meaning of the username '${perhapsUsernameWithMeaning}'.
+- Always include a heart-shaped item in the scene.
+- Always assume the gender of the sweatling, given its username. You may only choose between male and female.
+- Always include a description for the sweatling's facial expressions and posture.
+- Avoid any sexualization or suggestive content. If the username suggests such themes, focus on non-sexual aspects or indirect connections.
+- You may change the outfit of the sweatling, excluding the color orange, but only when the literal meaning of the username implies something more relevant.`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
