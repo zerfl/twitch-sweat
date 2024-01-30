@@ -650,7 +650,6 @@ async function main() {
 					});
 				}),
 				createBotCommand('ping', async (params, { userName, say }) => {
-					await delay(1000);
 					await messagesThrottle(() => {
 						return say(`@${userName} pong`);
 					});
