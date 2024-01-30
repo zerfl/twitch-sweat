@@ -48,11 +48,26 @@ export class CloudflareUploader {
 		return (await axios.request(options))?.data;
 	};
 
-	public fromURL = (url: string): Promise<ImageResponse> => {
+	public fromURL = (url: string, metadata: Record<string, unknown> = {}): Promise<ImageResponse> => {
 		return new Promise((resolve, reject) => {
 			const formData = new FormData();
 			formData.append('url', url);
 			formData.append('id', nanoid(10));
+
+			// Convert metadata object to string
+			const metadataStr = JSON.stringify(metadata);
+
+			// Check if metadata size exceeds 1024 bytes
+			if (Buffer.byteLength(metadataStr, 'utf8') > 1024) {
+				reject({
+					message: 'Metadata size exceeds 1024 bytes.',
+				});
+				return;
+			}
+
+			// Append metadata to formData
+			formData.append('metadata', metadataStr);
+
 			this.sendRequest(formData)
 				.then((data) => {
 					resolve(data);

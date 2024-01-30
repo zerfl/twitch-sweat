@@ -105,8 +105,8 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 	const completion = await OpenAi.chat.completions.create({
 		messages: messages,
 		model: 'gpt-3.5-turbo-0613',
-		temperature: 0.7,
-		max_tokens: 256,
+		temperature: 1,
+		max_tokens: 120,
 	});
 	if (!completion.choices[0].message.content) {
 		throw new Error('No content received from OpenAI');
@@ -115,18 +115,42 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 	return completion.choices[0].message.content;
 }
 
-async function generateImage(username: string) {
+async function generateImage(username: string, metadata: Record<string, unknown> = {}) {
 	const result = { success: false, message: '' };
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
-	const imagePrompt = `- A vibrant blue sweatling, with an orb-like round head and smooth skin wearing an orange hoodie. It is EXTREMELY IMPORTANT that you do not deviate from this description. Call it a sweatling, not a creature. Imagine a shiny blue orb as a head.
-- Generate a nearby sign with the bold and English letters '${username}' on it. This is a MUST. You MUST NOT DEVIATE from this instruction.
-- Choose an appropriate overall aesthetic for this vibrant scene. It should showcase clear outlines, a drawn style with illustrations.
-- Create an exaggerated scene and a vivid background featuring the sweatling, that incorporates the literal meaning of the username '${perhapsUsernameWithMeaning}'.
-- Always include a heart-shaped item in the scene.
-- Always include a description for the sweatling's facial expressions and posture.
-- Avoid any sexualization or suggestive content. If the username suggests such themes, focus on non-sexual aspects or indirect connections.
-- You may change the outfit of the sweatling, excluding the color orange, but only when the literal meaning of the username implies something more relevant.
-- The image tells a compelling story of the username '${perhapsUsernameWithMeaning}'. The main focus is the literal meaning of the provided username.`;
+
+	console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
+	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
+		{
+			role: 'system',
+			content: analyzerPrompt,
+		},
+		{
+			role: 'user',
+			content: perhapsUsernameWithMeaning,
+		},
+	];
+	const analysisResult = await getChatCompletion(analysisMessages);
+	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
+
+	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
+		...analysisMessages,
+		{
+			role: 'assistant',
+			content: analysisResult,
+		},
+		{
+			role: 'user',
+			content: scenarioPrompt,
+		},
+	];
+	const sentenceResult = await getChatCompletion(generatePromptMessages);
+	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
+
+	const imagePrompt = `- A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. (IMPORTANT: CALL IT A SWEATLING NOT A CREATURE)
+- IMPORTANT: Nearby is a sign with the bold letters '${username}' on it.
+- ${sentenceResult}
+- The overall aesthetic has clear outlines, merging both illustration and aquarell style, creating a lively and engaging atmosphere.`;
 
 	const image = await dalleThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
@@ -142,7 +166,7 @@ async function generateImage(username: string) {
 	console.log(perhapsUsernameWithMeaning, 'Uploading image');
 	console.log(perhapsUsernameWithMeaning, 'Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url!;
-	const uploadedImage = await cfUploader.fromURL(url);
+	const uploadedImage = await cfUploader.fromURL(url, metadata);
 
 	if (!uploadedImage.success) {
 		console.log(perhapsUsernameWithMeaning, `Image upload failed: ${uploadedImage.message}`);
@@ -231,7 +255,8 @@ async function handleEventAndSendImageMessage(
 
 	let imageResult: { success: boolean; message: string };
 	try {
-		imageResult = await retryAsyncOperation(generateImage, maxRetries, target);
+		const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: verb };
+		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
 	}
@@ -419,7 +444,8 @@ async function main() {
 				params.splice(0, 1);
 
 				for (const param of params) {
-					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param);
+					const metadata = { source: 'discord', channel: broadcasterName, target: param, trigger: 'custom' };
+					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
@@ -499,7 +525,6 @@ async function main() {
 					}
 
 					const target = params[0].replace('@', '');
-
 					if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
 						await messagesThrottle(() => {
 							return say(`@${userName} ${target} does not partake in ai sweatlings.`);
@@ -509,7 +534,8 @@ async function main() {
 
 					let imageResult: { success: boolean; message: string };
 					try {
-						imageResult = await retryAsyncOperation(generateImage, maxRetries, target);
+						const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: 'custom' };
+						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
 					} catch (error) {
 						imageResult = { success: false, message: 'Error' };
 					}
