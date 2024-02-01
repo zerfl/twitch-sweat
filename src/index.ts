@@ -42,13 +42,28 @@ type SavedCheerMap = {
 };
 
 type SingleImage = {
-	user: string;
 	image: string;
+	analysis: string;
+	revisedPrompt: string;
 	date: string;
 };
 
+type ImageGenerationSuccess = {
+	success: true;
+	message: string;
+	analysis: string;
+	revisedPrompt: string;
+};
+
+type ImageGenerationError = {
+	success: false;
+	message: string;
+};
+
+type ImageGenerationResult = ImageGenerationSuccess | ImageGenerationError;
+
 type BroadcasterImages = {
-	[key: string]: SingleImage[];
+	[key: string]: { [key: string]: SingleImage[] };
 };
 
 type UserMap = Map<string, number>;
@@ -68,16 +83,6 @@ async function ensureFileExists(filePath: string, defaultContent: string = ''): 
 }
 
 async function getImageData(broadcaster: string) {
-	try {
-		const broadcasterImageData = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
-		return broadcasterImageData[broadcaster] || [];
-	} catch (error) {
-		console.error(`Error reading image file at ${imagesFilePath}`, error);
-		return [];
-	}
-}
-
-async function storeImageData(broadcaster: string, user: string, image: string) {
 	let broadcasterImageData: BroadcasterImages;
 
 	try {
@@ -87,26 +92,41 @@ async function storeImageData(broadcaster: string, user: string, image: string) 
 		broadcasterImageData = {};
 	}
 
-	const imageData = broadcasterImageData[broadcaster] || [];
-	const length = imageData.push({
-		user,
-		image,
-		date: new Date().toISOString(),
-	});
+	return broadcasterImageData[broadcaster] || [];
+}
 
-	broadcasterImageData[broadcaster] = imageData;
+// TODO: This is seriously inefficient, we need to store the data in a database ASAP
+async function storeImageData(broadcaster: string, user: string, imageData: SingleImage) {
+	let broadcasterImageData: BroadcasterImages = {};
+
+	try {
+		broadcasterImageData = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
+	} catch (error) {
+		console.error(`Error reading image file at ${imagesFilePath}`, error);
+	}
+
+	const userImages = broadcasterImageData[broadcaster]?.[user] || [];
+	userImages.push(imageData);
+
+	broadcasterImageData[broadcaster] = { ...(broadcasterImageData[broadcaster] || {}), [user]: userImages };
 
 	await fs.writeFile(imagesFilePath, JSON.stringify(broadcasterImageData, null, 4), 'utf-8');
 
-	return length;
+	// Calculate total number of images for the broadcaster
+	let totalImages = 0;
+	for (const user in broadcasterImageData[broadcaster]) {
+		totalImages += broadcasterImageData[broadcaster][user].length;
+	}
+
+	return totalImages;
 }
 
-async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) {
+async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[], length: number) {
 	const completion = await OpenAi.chat.completions.create({
 		messages: messages,
 		model: 'gpt-3.5-turbo-0613',
 		temperature: 1,
-		max_tokens: 120,
+		max_tokens: length,
 	});
 	if (!completion.choices[0].message.content) {
 		throw new Error('No content received from OpenAI');
@@ -115,8 +135,7 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[]) 
 	return completion.choices[0].message.content;
 }
 
-async function generateImage(username: string, metadata: Record<string, unknown> = {}) {
-	const result = { success: false, message: '' };
+async function generateImage(username: string, metadata: Record<string, unknown> = {}): Promise<ImageGenerationResult> {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
 
 	console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
@@ -130,7 +149,7 @@ async function generateImage(username: string, metadata: Record<string, unknown>
 			content: perhapsUsernameWithMeaning,
 		},
 	];
-	const analysisResult = await getChatCompletion(analysisMessages);
+	const analysisResult = await getChatCompletion(analysisMessages, 256);
 	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
 
 	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
@@ -144,16 +163,14 @@ async function generateImage(username: string, metadata: Record<string, unknown>
 			content: scenarioPrompt,
 		},
 	];
-	const sentenceResult = await getChatCompletion(generatePromptMessages);
+	const sentenceResult = await getChatCompletion(generatePromptMessages, 256);
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `- A vibrant blue sweatling, with a completely round head and smooth skin is wearing an orange hoodie. (IMPORTANT: CALL IT A SWEATLING NOT A CREATURE)
-- IMPORTANT: Nearby is a sign with the bold letters '${username}' on it.
-- ${sentenceResult}
-- The overall aesthetic has clear outlines, merging both illustration and aquarell style, creating a lively and engaging atmosphere.`;
+	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: ${sentenceResult}`;
+	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
 	const image = await dalleThrottle(() => {
-		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePrompt}`);
+		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePromptSingleLine}`);
 		return OpenAi.images.generate({
 			model: 'dall-e-3',
 			prompt: imagePrompt,
@@ -175,10 +192,13 @@ async function generateImage(username: string, metadata: Record<string, unknown>
 
 	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
 	console.log(perhapsUsernameWithMeaning, `Image uploaded: ${finalUrl}`);
-	result.success = true;
-	result.message = finalUrl;
 
-	return result;
+	return {
+		success: true,
+		message: finalUrl,
+		analysis: analysisResult,
+		revisedPrompt: image.data[0].revised_prompt!,
+	};
 }
 
 async function getAppRootDir() {
@@ -253,7 +273,7 @@ async function handleEventAndSendImageMessage(
 	}
 	const verb = gifting ? 'gifting' : 'subscribing';
 
-	let imageResult: { success: boolean; message: string };
+	let imageResult: ImageGenerationResult;
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: verb };
 		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
@@ -270,7 +290,12 @@ async function handleEventAndSendImageMessage(
 		});
 		return;
 	}
-	const numImages = await storeImageData(broadcasterName, target, imageResult.message);
+	const numImages = await storeImageData(broadcasterName, target, {
+		image: imageResult.message,
+		analysis: imageResult.analysis,
+		revisedPrompt: imageResult.revisedPrompt,
+		date: new Date().toISOString(),
+	});
 
 	try {
 		discordBot.user!.setActivity({
@@ -450,7 +475,12 @@ async function main() {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
 					}
-					const numImages = await storeImageData(broadcasterName, param, imageResult.message);
+					const numImages = await storeImageData(broadcasterName, param, {
+						image: imageResult.message,
+						analysis: imageResult.analysis,
+						revisedPrompt: imageResult.revisedPrompt,
+						date: new Date().toISOString(),
+					});
 
 					try {
 						discordBot.user!.setActivity({
@@ -532,7 +562,7 @@ async function main() {
 						return;
 					}
 
-					let imageResult: { success: boolean; message: string };
+					let imageResult: ImageGenerationResult;
 					try {
 						const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: 'custom' };
 						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
@@ -547,7 +577,12 @@ async function main() {
 
 						return;
 					}
-					const numImages = await storeImageData(broadcasterName, params[0], imageResult.message);
+					const numImages = await storeImageData(broadcasterName, params[0], {
+						image: imageResult.message,
+						analysis: imageResult.analysis,
+						revisedPrompt: imageResult.revisedPrompt,
+						date: new Date().toISOString(),
+					});
 
 					try {
 						discordBot.user!.setActivity({
