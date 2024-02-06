@@ -70,10 +70,6 @@ type UserMap = Map<string, number>;
 type UserCheerMap = Map<string, UserMap>;
 type UserMeaningMap = Map<string, string>;
 
-async function delay(milliseconds = 1000) {
-	await new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
 	try {
 		await fs.access(filePath);
@@ -127,7 +123,7 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[], 
 		model: 'gpt-3.5-turbo-0613',
 		temperature: 1,
 		max_tokens: length,
-	});
+	} as OpenAI.ChatCompletionCreateParamsNonStreaming);
 	if (!completion.choices[0].message.content) {
 		throw new Error('No content received from OpenAI');
 	}
@@ -137,8 +133,6 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[], 
 
 async function generateImage(username: string, metadata: Record<string, unknown> = {}): Promise<ImageGenerationResult> {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
-
-	console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -149,21 +143,28 @@ async function generateImage(username: string, metadata: Record<string, unknown>
 			content: perhapsUsernameWithMeaning,
 		},
 	];
-	const analysisResult = await getChatCompletion(analysisMessages, 256);
-	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
 
-	const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
-		...analysisMessages,
-		{
-			role: 'assistant',
-			content: analysisResult,
-		},
-		{
-			role: 'user',
-			content: scenarioPrompt,
-		},
-	];
-	const sentenceResult = await getChatCompletion(generatePromptMessages, 256);
+	const analysisResult = await openaiThrottle(() => {
+		console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
+		return getChatCompletion(analysisMessages, 256);
+	});
+
+	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
+	const sentenceResult = await openaiThrottle(() => {
+		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
+			...analysisMessages,
+			{
+				role: 'assistant',
+				content: analysisResult,
+			},
+			{
+				role: 'user',
+				content: scenarioPrompt,
+			},
+		];
+		return getChatCompletion(generatePromptMessages, 256);
+	});
+
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
 
 	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: ${sentenceResult}`;
@@ -689,6 +690,11 @@ async function main() {
 						return say(`@${userName} pong`);
 					});
 				}),
+				createBotCommand('say', async (params, { say }) => {
+					await messagesThrottle(() => {
+						return say(params.join(' '));
+					});
+				}),
 			],
 		});
 
@@ -767,6 +773,7 @@ const userCheerMap: UserCheerMap = new Map();
 const userMeaningMap: UserMeaningMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
+const openaiThrottle = throttledQueue(30, 60 * 1000, true);
 const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
 const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
 
