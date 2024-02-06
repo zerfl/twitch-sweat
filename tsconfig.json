@@ -11,6 +11,8 @@
     "moduleResolution": "Bundler"
   },
   "include": [
-    "src"
+    "src",
+    "scripts",
+    "./environment.d.ts"
   ]
 }
