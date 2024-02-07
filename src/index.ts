@@ -88,7 +88,17 @@ async function getImageData(broadcaster: string) {
 		broadcasterImageData = {};
 	}
 
-	return broadcasterImageData[broadcaster] || [];
+	// bail out early if there's no data
+	if (!broadcasterImageData[broadcaster]) {
+		return 0;
+	}
+
+	let totalImages = 0;
+	for (const user in broadcasterImageData[broadcaster]) {
+		totalImages += broadcasterImageData[broadcaster][user].length;
+	}
+
+	return totalImages;
 }
 
 // TODO: This is seriously inefficient, we need to store the data in a database ASAP
@@ -108,7 +118,6 @@ async function storeImageData(broadcaster: string, user: string, imageData: Sing
 
 	await fs.writeFile(imagesFilePath, JSON.stringify(broadcasterImageData, null, 4), 'utf-8');
 
-	// Calculate total number of images for the broadcaster
 	let totalImages = 0;
 	for (const user in broadcasterImageData[broadcaster]) {
 		totalImages += broadcasterImageData[broadcaster][user].length;
@@ -412,7 +421,7 @@ async function main() {
 				activities: [
 					{
 						name: 'ImageGenerations',
-						state: `🖼️ ${numImages.length} images generated`,
+						state: `🖼️ ${numImages} images generated`,
 						type: ActivityType.Custom,
 					},
 				],
