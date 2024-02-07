@@ -547,13 +547,8 @@ async function main() {
 			channels: twitchChannels,
 			commands: [
 				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-					if (!['partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
-						return;
-					}
-
-					if (params.length === 0) {
-						return;
-					}
+					if (!['partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
+					if (params.length === 0) return;
 
 					const target = params[0].replace('@', '');
 					if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
@@ -565,7 +560,7 @@ async function main() {
 
 					let imageResult: ImageGenerationResult;
 					try {
-						const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: 'custom' };
+						const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: 'custom' };
 						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
 					} catch (error) {
 						imageResult = { success: false, message: 'Error' };
@@ -613,9 +608,7 @@ async function main() {
 					});
 				}),
 				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
-						return;
-					}
+					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
 
 					if (params.length < 2) {
 						await messagesThrottle(() => {
@@ -635,9 +628,7 @@ async function main() {
 					});
 				}),
 				createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) {
-						return;
-					}
+					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
 
 					if (params.length !== 1) {
 						await messagesThrottle(() => {
@@ -686,11 +677,17 @@ async function main() {
 					});
 				}),
 				createBotCommand('ping', async (params, { userName, say }) => {
+					if (userName.toLowerCase() !== 'partyhorst') return;
+					if (params.length === 0) return;
+
 					await messagesThrottle(() => {
 						return say(`@${userName} pong`);
 					});
 				}),
-				createBotCommand('say', async (params, { say }) => {
+				createBotCommand('say', async (params, { say, userName }) => {
+					if (userName.toLowerCase() !== 'partyhorst') return;
+					if (params.length === 0) return;
+
 					await messagesThrottle(() => {
 						return say(params.join(' '));
 					});
