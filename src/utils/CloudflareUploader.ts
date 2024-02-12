@@ -2,81 +2,62 @@ import FormData from 'form-data';
 import axios from 'axios';
 import { nanoid } from 'nanoid';
 
-interface Response {
-	error: boolean;
-	success: boolean;
-}
-
-interface SuccessResponse extends Response {
+interface CloudflareUploadSuccess {
 	success: true;
 	result: {
-		filename: string;
 		id: string;
-		requiredSignedURLs: boolean;
+		filename: string;
 		uploaded: boolean;
+		requiredSignedURLs: boolean;
 	};
 }
 
-interface ErrorResponse extends Response {
+interface CloudflareUploadError {
 	success: false;
-	message: string;
+	errors: { message: string }[];
 }
 
-type ImageResponse = SuccessResponse | ErrorResponse;
+type CloudflareUploadResponse = CloudflareUploadSuccess | CloudflareUploadError;
 
 export class CloudflareUploader {
-	private readonly accountId: string;
-	private readonly apiToken: string;
+	private readonly baseUrl = 'https://api.cloudflare.com/client/v4/accounts';
 
-	constructor(accountId: string, apiToken: string) {
-		if (!(accountId && apiToken)) throw new Error('You need to provide both the account id and the api token.');
-
-		this.accountId = accountId;
-		this.apiToken = apiToken;
+	constructor(
+		private accountId: string,
+		private apiToken: string,
+	) {
+		if (!accountId || !apiToken) {
+			throw new Error('Cloudflare account ID and API token are required.');
+		}
 	}
 
-	private sendRequest = async (formData: FormData) => {
-		const options = {
-			method: 'POST',
-			url: `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/images/v1`,
-			headers: {
-				'Content-Type': 'multipart/form-data',
-				Authorization: `Bearer ${this.apiToken}`,
-			},
-			data: formData,
-		};
-		return (await axios.request(options))?.data;
-	};
-
-	public fromURL = (url: string, metadata: Record<string, unknown> = {}): Promise<ImageResponse> => {
-		return new Promise((resolve, reject) => {
-			const formData = new FormData();
-			formData.append('url', url);
-			formData.append('id', nanoid(10));
-
-			// Convert metadata object to string
-			const metadataStr = JSON.stringify(metadata);
-
-			// Check if metadata size exceeds 1024 bytes
-			if (Buffer.byteLength(metadataStr, 'utf8') > 1024) {
-				reject({
-					message: 'Metadata size exceeds 1024 bytes.',
-				});
-				return;
+	private async sendRequest(formData: FormData): Promise<CloudflareUploadResponse> {
+		try {
+			const url = `${this.baseUrl}/${this.accountId}/images/v1`;
+			const headers = { ...formData.getHeaders(), Authorization: `Bearer ${this.apiToken}` };
+			const response = await axios.post(url, formData, { headers });
+			return response.data;
+		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				return {
+					success: false,
+					errors: [{ message: `Cloudflare API error: ${error.response?.status} ${error.response?.statusText}` }],
+				};
+			} else {
+				return { success: false, errors: [{ message: 'An unexpected error occurred during the upload process.' }] };
 			}
+		}
+	}
 
-			// Append metadata to formData
-			formData.append('metadata', metadataStr);
+	public async uploadImageFromUrl(
+		url: string,
+		metadata: Record<string, unknown> = {},
+	): Promise<CloudflareUploadResponse> {
+		const formData = new FormData();
+		formData.append('url', url);
+		formData.append('id', nanoid(10));
+		formData.append('metadata', JSON.stringify(metadata));
 
-			this.sendRequest(formData)
-				.then((data) => {
-					resolve(data);
-				})
-				.catch((err) => {
-					reject({
-						message: err?.toString(),
-					});
-				});
-		});
-	};
+		return this.sendRequest(formData);
+	}
 }

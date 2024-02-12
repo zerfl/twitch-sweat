@@ -34,13 +34,6 @@ requiredEnvVars.forEach((envVar) => {
 	}
 });
 
-type SavedCheerMap = {
-	cheers: {
-		broadcaster: string;
-		users: { user: string; cheers: number }[];
-	}[];
-};
-
 type SingleImage = {
 	image: string;
 	analysis: string;
@@ -63,12 +56,13 @@ type ImageGenerationError = {
 type ImageGenerationResult = ImageGenerationSuccess | ImageGenerationError;
 
 type BroadcasterImages = {
-	[key: string]: { [key: string]: SingleImage[] };
+	[broadcaster: string]: {
+		[user: string]: SingleImage[];
+	};
 };
 
-type UserMap = Map<string, number>;
-type UserCheerMap = Map<string, UserMap>;
 type UserMeaningMap = Map<string, string>;
+type BroadcasterThemeMap = Map<string, string>;
 
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
 	try {
@@ -140,22 +134,37 @@ async function getChatCompletion(messages: OpenAI.ChatCompletionMessageParam[], 
 	return completion.choices[0].message.content;
 }
 
-async function generateImage(username: string, metadata: Record<string, unknown> = {}): Promise<ImageGenerationResult> {
+async function generateImage(
+	username: string,
+	metadata: Record<string, unknown> = {},
+	theme: string,
+): Promise<ImageGenerationResult> {
 	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
+
+	let queryMessage = perhapsUsernameWithMeaning;
+	if (perhapsUsernameWithMeaning !== username) {
+		queryMessage = `Literal username: ${username}\nIntended meaning: ${perhapsUsernameWithMeaning}`;
+	}
+
+	let queryAnalzerPrompt = analyzerPrompt;
+	if (theme) {
+		queryAnalzerPrompt += `Incorporate the theme '${theme}' into the scene.`;
+	}
+
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: analyzerPrompt,
+			content: queryAnalzerPrompt,
 		},
 		{
 			role: 'user',
-			content: perhapsUsernameWithMeaning,
+			content: queryMessage,
 		},
 	];
 
 	const analysisResult = await openaiThrottle(() => {
 		console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
-		return getChatCompletion(analysisMessages, 256);
+		return getChatCompletion(analysisMessages, 350);
 	});
 
 	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
@@ -193,10 +202,10 @@ async function generateImage(username: string, metadata: Record<string, unknown>
 	console.log(perhapsUsernameWithMeaning, 'Uploading image');
 	console.log(perhapsUsernameWithMeaning, 'Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url!;
-	const uploadedImage = await cfUploader.fromURL(url, metadata);
+	const uploadedImage = await cfUploader.uploadImageFromUrl(url, metadata);
 
 	if (!uploadedImage.success) {
-		console.log(perhapsUsernameWithMeaning, `Image upload failed: ${uploadedImage.message}`);
+		console.log(perhapsUsernameWithMeaning, `Image upload failed: ${uploadedImage.errors}`);
 		return { success: false, message: 'Error' };
 	}
 
@@ -286,7 +295,8 @@ async function handleEventAndSendImageMessage(
 	let imageResult: ImageGenerationResult;
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: verb };
-		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
+		const theme = getBroadcasterTheme(broadcasterName);
+		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
 	}
@@ -338,41 +348,33 @@ async function handleEventAndSendImageMessage(
 	});
 }
 
-async function setUserCheer(broadcasterName: string, user: string, cheers: number) {
-	const userLastRequestMap = userCheerMap.get(broadcasterName) || new Map();
-	const previousCheerCount = userLastRequestMap.get(user) || 0;
-	const newCheerCount = previousCheerCount + cheers;
-
-	userLastRequestMap.set(user, newCheerCount);
-	userCheerMap.set(broadcasterName, userLastRequestMap);
-}
-
-async function saveCheers(filePath: PathLike) {
-	const cheers: SavedCheerMap = {
-		cheers: Array.from(userCheerMap).map(([broadcasterName, userMap]) => ({
-			broadcaster: broadcasterName,
-			users: Array.from(userMap).map(([userName, cheers]) => ({
-				user: userName,
-				cheers: cheers,
-			})),
-		})),
-	};
-
-	await fs.writeFile(filePath, JSON.stringify(cheers, null, 4), 'utf-8');
-}
-
-async function loadCheers(filePath: PathLike) {
+async function loadThemes(filePath: PathLike) {
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
-		const cheerData = JSON.parse(data) as SavedCheerMap;
-		cheerData.cheers.forEach(({ broadcaster, users }) => {
-			const userMap: UserMap = new Map();
-			users.forEach(({ user, cheers }) => userMap.set(user, cheers));
-			userCheerMap.set(broadcaster, userMap);
+		const meanings = JSON.parse(data) as Record<string, string>;
+		Object.entries(meanings).forEach(([broadcaster, theme]) => {
+			broadcasterThemeMap.set(broadcaster, theme);
 		});
 	} catch (error) {
-		console.log(`Error reading cheers count file at ${filePath}`, error);
+		console.log(`Error reading themes file at ${filePath}`, error);
 	}
+}
+
+async function setTheme(broadcaster: string, theme: string) {
+	broadcasterThemeMap.set(broadcaster, theme);
+}
+
+async function removeTheme(broadcaster: string) {
+	return broadcasterThemeMap.delete(broadcaster);
+}
+
+async function saveThemes(filePath: PathLike) {
+	const themes = Object.fromEntries(broadcasterThemeMap);
+	await fs.writeFile(filePath, JSON.stringify(themes, null, 4), 'utf-8');
+}
+
+function getBroadcasterTheme(broadcaster: string) {
+	return broadcasterThemeMap.get(broadcaster) || '';
 }
 
 async function loadMeanings(filePath: PathLike) {
@@ -396,11 +398,7 @@ async function removeMeaning(user: string) {
 }
 
 async function saveMeanings(filePath: PathLike) {
-	const meanings: Record<string, string> = {};
-	userMeaningMap.forEach((meaning, user) => {
-		meanings[user] = meaning;
-	});
-
+	const meanings = Object.fromEntries(userMeaningMap);
 	await fs.writeFile(filePath, JSON.stringify(meanings, null, 4), 'utf-8');
 }
 
@@ -476,11 +474,12 @@ async function main() {
 				}
 			} else if (command === '!generateimage') {
 				const broadcasterName = params[0];
+				const theme = getBroadcasterTheme(broadcasterName);
 				params.splice(0, 1);
 
 				for (const param of params) {
 					const metadata = { source: 'discord', channel: broadcasterName, target: param, trigger: 'custom' };
-					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata);
+					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata, theme);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
@@ -570,7 +569,8 @@ async function main() {
 					let imageResult: ImageGenerationResult;
 					try {
 						const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: 'custom' };
-						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata);
+						const theme = getBroadcasterTheme(broadcasterName);
+						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
 					} catch (error) {
 						imageResult = { success: false, message: 'Error' };
 					}
@@ -616,9 +616,45 @@ async function main() {
 						return say(`@${userName} Here's your image: ${imageResult.message}`);
 					});
 				}),
+				createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
+					if (userName.toLowerCase() !== broadcasterName.toLowerCase()) return;
+					if (params.length === 0) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a theme.`);
+						});
+						return;
+					}
+
+					const theme = params.join(' ');
+					await setTheme(broadcasterName.toLowerCase(), theme);
+					await saveThemes(themeFilePath);
+
+					await messagesThrottle(() => {
+						return say(`@${userName} Theme set to: ${theme}`);
+					});
+				}),
+				createBotCommand('deltheme', async (params, { userName, broadcasterName, say }) => {
+					if (userName.toLowerCase() !== broadcasterName.toLowerCase()) return;
+
+					await removeTheme(broadcasterName.toLowerCase());
+					await saveThemes(themeFilePath);
+
+					await messagesThrottle(() => {
+						return say(`@${userName} Theme removed.`);
+					});
+				}),
+				createBotCommand('gettheme', async (params, { userName, broadcasterName, say }) => {
+					const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
+					await messagesThrottle(() => {
+						if (!theme) {
+							return say(`@${userName} No theme set.`);
+						}
+
+						return say(`@${userName} Current theme: ${theme}`);
+					});
+				}),
 				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
 					if (!['myndzi', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
-
 					if (params.length < 2) {
 						await messagesThrottle(() => {
 							return say(`@${userName} Please provide a username and a meaning.`);
@@ -628,7 +664,6 @@ async function main() {
 
 					const user = params[0];
 					const meaning = params.slice(1).join(' ');
-
 					await setMeaning(user.toLowerCase(), meaning);
 					await saveMeanings(meaningsFilePath);
 
@@ -707,13 +742,6 @@ async function main() {
 		twitchBot.onConnect(() => {
 			console.log(`Connected to ${twitchChannels.join(', ')}!`);
 		});
-		twitchBot.chat.onMessage(async (channel, user, _text, message) => {
-			if (message.isCheer) {
-				console.log(`Cheer received on ${channel} from ${user}! Bits: ${message.bits}`);
-				await setUserCheer(channel, user, message.bits);
-				await saveCheers(cheersCountFile);
-			}
-		});
 		twitchBot.onSub(({ broadcasterName, userName }) => {
 			console.log('onSub', broadcasterName, userName);
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
@@ -763,6 +791,7 @@ const tokenFilePath = path.join(appRootDir, 'data', 'tokens.json');
 const cheersCountFile = path.join(appRootDir, 'data', 'cheers.json');
 const imagesFilePath = path.join(appRootDir, 'data', 'images.json');
 const meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
+const themeFilePath = path.join(appRootDir, 'data', 'themes.json');
 const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
@@ -775,8 +804,8 @@ const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
 const analyzerPrompt = process.env.OPENAI_ANALYZER_PROMPT!;
 const scenarioPrompt = process.env.OPENAI_SCENARIO_PROMPT!;
-const userCheerMap: UserCheerMap = new Map();
 const userMeaningMap: UserMeaningMap = new Map();
+const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
 const openaiThrottle = throttledQueue(30, 60 * 1000, true);
@@ -807,16 +836,18 @@ try {
 		ensureFileExists(imagesFilePath, JSON.stringify({})),
 		ensureFileExists(ignoreFilePath, JSON.stringify([])),
 		ensureFileExists(meaningsFilePath, JSON.stringify({})),
+		ensureFileExists(themeFilePath, JSON.stringify({})),
 		ignoreListManager.loadIgnoreList(),
 	]);
 
-	await loadCheers(cheersCountFile);
+	await loadThemes(themeFilePath);
 	await loadMeanings(meaningsFilePath);
 
 	console.log(`Using token file: ${tokenFilePath}`);
 	console.log(`Using cheers count file: ${cheersCountFile}`);
 	console.log(`Using images file: ${imagesFilePath}`);
 	console.log(`Using meanings file: ${meaningsFilePath}`);
+	console.log(`Using themes file: ${themeFilePath}`);
 	console.log(`Using ignore file: ${ignoreFilePath}`);
 
 	await main();
