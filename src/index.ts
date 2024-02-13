@@ -180,7 +180,7 @@ async function generateImage(
 				content: scenarioPrompt,
 			},
 		];
-		return getChatCompletion(generatePromptMessages, 256);
+		return getChatCompletion(generatePromptMessages, 350);
 	});
 
 	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
