@@ -146,10 +146,8 @@ async function generateImage(
 		queryMessage = `Literal username: ${username}\nIntended meaning: ${perhapsUsernameWithMeaning}`;
 	}
 
-	let queryAnalzerPrompt = analyzerPrompt;
-	if (theme) {
-		queryAnalzerPrompt += `Incorporate the theme '${theme}' into the scene.`;
-	}
+	const themeMessage = theme ? `Make sure to incorporate the theme '${theme}' into the scene.` : '';
+	const queryAnalzerPrompt = analyzerPrompt.replace('__THEME__', themeMessage);
 
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
