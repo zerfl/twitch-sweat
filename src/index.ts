@@ -108,7 +108,10 @@ async function storeImageData(broadcaster: string, user: string, imageData: Sing
 	const userImages = broadcasterImageData[broadcaster]?.[user] || [];
 	userImages.push(imageData);
 
-	broadcasterImageData[broadcaster] = { ...(broadcasterImageData[broadcaster] || {}), [user]: userImages };
+	broadcasterImageData[broadcaster] = {
+		...(broadcasterImageData[broadcaster] || {}),
+		[user]: userImages,
+	};
 
 	await fs.writeFile(imagesFilePath, JSON.stringify(broadcasterImageData, null, 4), 'utf-8');
 
@@ -139,13 +142,9 @@ async function generateImage(
 	metadata: Record<string, unknown> = {},
 	theme: string,
 ): Promise<ImageGenerationResult> {
-	const perhapsUsernameWithMeaning = getUserMeaning(username.toLowerCase());
-
-	let queryMessage = perhapsUsernameWithMeaning;
-	if (perhapsUsernameWithMeaning !== username) {
-		queryMessage = `Literal username: ${username}\nIntended meaning: ${perhapsUsernameWithMeaning}`;
-	}
-
+	const userMeaning = getUserMeaning(username.toLowerCase());
+	const queryMessage =
+		userMeaning !== username ? `Literal username: ${username}\nIntended meaning: ${userMeaning}` : username;
 	const themeMessage = theme ? `Make sure to incorporate the theme '${theme}' into the scene.` : '';
 	const queryAnalzerPrompt = analyzerPrompt.replace('__THEME__', themeMessage);
 
@@ -161,11 +160,19 @@ async function generateImage(
 	];
 
 	const analysisResult = await openaiThrottle(() => {
-		console.log(perhapsUsernameWithMeaning, `Analysing text: ${username} / ${perhapsUsernameWithMeaning}`);
+		console.log(userMeaning, `Analysing text: ${username} / ${userMeaning}`);
 		return getChatCompletion(analysisMessages, 350);
 	});
 
-	console.log(perhapsUsernameWithMeaning, `Analysed text: ${analysisResult}`);
+	// choose a random template and return the template and its key
+	const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
+	const template = dalleTemplates[templateIndex];
+	const queryScenarioPrompt = scenarioPrompt
+		.replace('__TEMPLATE__', template.value)
+		.replace('__TEMPLATE_NAME__', template.name);
+
+	console.log(userMeaning, `Using template: ${template.name}`);
+	console.log(userMeaning, `Analysed text: ${analysisResult}`);
 	const sentenceResult = await openaiThrottle(() => {
 		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
 			...analysisMessages,
@@ -175,19 +182,19 @@ async function generateImage(
 			},
 			{
 				role: 'user',
-				content: scenarioPrompt,
+				content: queryScenarioPrompt,
 			},
 		];
 		return getChatCompletion(generatePromptMessages, 350);
 	});
 
-	console.log(perhapsUsernameWithMeaning, `Generated sentence: ${sentenceResult}`);
+	console.log(userMeaning, `Generated sentence: ${sentenceResult}`);
 
 	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: ${sentenceResult}`;
 	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
 	const image = await dalleThrottle(() => {
-		console.log(perhapsUsernameWithMeaning, `Creating image: ${imagePromptSingleLine}`);
+		console.log(userMeaning, `Creating image: ${imagePromptSingleLine}`);
 		return OpenAi.images.generate({
 			model: 'dall-e-3',
 			prompt: imagePrompt,
@@ -197,18 +204,18 @@ async function generateImage(
 		});
 	});
 
-	console.log(perhapsUsernameWithMeaning, 'Uploading image');
-	console.log(perhapsUsernameWithMeaning, 'Revised prompt', image.data[0].revised_prompt);
+	console.log(userMeaning, 'Uploading image');
+	console.log(userMeaning, 'Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url!;
 	const uploadedImage = await cfUploader.uploadImageFromUrl(url, metadata);
 
 	if (!uploadedImage.success) {
-		console.log(perhapsUsernameWithMeaning, `Image upload failed: ${uploadedImage.errors}`);
+		console.log(userMeaning, `Image upload failed: ${uploadedImage.errors}`);
 		return { success: false, message: 'Error' };
 	}
 
 	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
-	console.log(perhapsUsernameWithMeaning, `Image uploaded: ${finalUrl}`);
+	console.log(userMeaning, `Image uploaded: ${finalUrl}`);
 
 	return {
 		success: true,
@@ -476,7 +483,12 @@ async function main() {
 				params.splice(0, 1);
 
 				for (const param of params) {
-					const metadata = { source: 'discord', channel: broadcasterName, target: param, trigger: 'custom' };
+					const metadata = {
+						source: 'discord',
+						channel: broadcasterName,
+						target: param,
+						trigger: 'custom',
+					};
 					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata, theme);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
@@ -566,7 +578,12 @@ async function main() {
 
 					let imageResult: ImageGenerationResult;
 					try {
-						const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: 'custom' };
+						const metadata = {
+							source: 'twitch',
+							channel: broadcasterName,
+							target: target,
+							trigger: 'custom',
+						};
 						const theme = getBroadcasterTheme(broadcasterName);
 						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
 					} catch (error) {
@@ -631,7 +648,7 @@ async function main() {
 						return say(`@${userName} Theme set to: ${theme}`);
 					});
 				}),
-				createBotCommand('deltheme', async (params, { userName, broadcasterName, say }) => {
+				createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
 					if (userName.toLowerCase() !== broadcasterName.toLowerCase()) return;
 
 					await removeTheme(broadcasterName.toLowerCase());
@@ -641,7 +658,7 @@ async function main() {
 						return say(`@${userName} Theme removed.`);
 					});
 				}),
-				createBotCommand('gettheme', async (params, { userName, broadcasterName, say }) => {
+				createBotCommand('gettheme', async (_params, { userName, broadcasterName, say }) => {
 					const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
 					await messagesThrottle(() => {
 						if (!theme) {
@@ -704,14 +721,14 @@ async function main() {
 						return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
 					});
 				}),
-				createBotCommand('noai', async (params, { userName, say }) => {
+				createBotCommand('noai', async (_params, { userName, say }) => {
 					await ignoreListManager.addToIgnoreList(userName.toLowerCase());
 
 					await messagesThrottle(() => {
 						return say(`@${userName} You will no longer receive AI sweatlings`);
 					});
 				}),
-				createBotCommand('yesai', async (params, { userName, say }) => {
+				createBotCommand('yesai', async (_params, { userName, say }) => {
 					await ignoreListManager.removeFromIgnoreList(userName.toLowerCase());
 
 					await messagesThrottle(() => {
@@ -809,6 +826,39 @@ const messagesThrottle = throttledQueue(20, 30 * 1000, true);
 const openaiThrottle = throttledQueue(30, 60 * 1000, true);
 const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
 const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
+
+type DalleTemplate = {
+	name: string;
+	value: string;
+};
+
+const dalleTemplates: DalleTemplate[] = [
+	{
+		name: 'illustration',
+		value:
+			"In a vibrant, illustrated scene, a blue sweatling with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment], reflecting the theme '[theme]'. The sweatling [appearance] and its expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
+	},
+	{
+		name: 'watercolor',
+		value:
+			"In a vibrant scene with a watercolor aesthetic, a blue sweatling with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment]. The sweatling [appearance] and its expression is [expression], and its posture is [posture]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
+	},
+	{
+		name: 'pixel art',
+		value:
+			"A vibrant blue sweatling, with an orb-like round head and smooth skin, wearing [chosen outfit]. Its facial expression is [expression] and a posture that [posture]. Near the sweatling, there's a sign with bold letters spelling '[literal/verbatim username]'. This image is rendered in a pixel art style, capturing the essence of both the sweatling and the [theme]. The background is a vivid and pixelated [relevant theme], featuring [objects and environment]. A heart-shaped [object] is included in the pixel art scene.",
+	},
+	{
+		name: 'blocky pixel art',
+		value:
+			"A vibrant blue sweatling with an orb-like round head and smooth skin, wearing [chosen outfit]. The image should be rendered in a distinct blocky pixel art style, where pixels and blocks are clearly visible, emphasizing the digital, retro aesthetic. The sweatling's expression of [expression] should be captured through the simplicity of pixel art, set against a backdrop that includes [relevant theme]. This background should incorporate blocky representations of [relevant objects and environment] maintaining a cohesive theme within the pixel art framework. A heart-shaped [object] is included in the scene. The sign '[literal/verbatim username]' must be prominently displayed in the scene, executed in the same pixelated style. The composition should marry the charm of pixel art with the thematic elements.",
+	},
+	{
+		name: 'oil painting',
+		value:
+			"A blue vibrant creature with an orb-like round head and smooth skin, dressed in [chosen outfit], exudes an expression [expression]. This scene is depicted entirely in oil painting style, featuring elements such as [relevant theme, objects and environment]. The expressive and colorful strokes typical of oil paintings bring these items to life against a fantastical background. This non-realistic ambiance, rich in the charm and vibrancy of oil paint aesthetics, includes a sign reading '[literal/verbatim username]', seamlessly integrated within the whimsical setting. A heart-shaped [object] is included in the scene. The artwork is a celebration of the fusion of fantasy and the tactile qualities of oil painting, crafting a visually engaging narrative that captures the imagination.",
+	},
+];
 
 /*
  * DALL-E throttling
