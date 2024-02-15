@@ -737,7 +737,6 @@ async function main() {
 				}),
 				createBotCommand('ping', async (params, { userName, say }) => {
 					if (userName.toLowerCase() !== 'partyhorst') return;
-					if (params.length === 0) return;
 
 					await messagesThrottle(() => {
 						return say(`@${userName} pong`);
