@@ -141,10 +141,13 @@ async function generateImage(
 	username: string,
 	metadata: Record<string, unknown> = {},
 	theme: string,
+	style: string | null = null,
 ): Promise<ImageGenerationResult> {
 	const userMeaning = getUserMeaning(username.toLowerCase());
 	const queryMessage =
-		userMeaning !== username ? `Literal username: ${username}\nIntended meaning: ${userMeaning}` : username;
+		userMeaning !== username
+			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
+			: `Username: ${username}`;
 	const themeMessage = theme ? `Make sure to incorporate the theme '${theme}' into the scene.` : '';
 	const queryAnalzerPrompt = analyzerPrompt.replace('__THEME__', themeMessage);
 
@@ -164,12 +167,17 @@ async function generateImage(
 		return getChatCompletion(analysisMessages, 350);
 	});
 
-	// choose a random template and return the template and its key
-	const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
-	const template = dalleTemplates[templateIndex];
+	let template;
+	if (style) {
+		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style.toLowerCase());
+	}
+	if (!template) {
+		const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
+		template = dalleTemplates[templateIndex];
+	}
 	const queryScenarioPrompt = scenarioPrompt
-		.replace('__TEMPLATE__', template.value)
-		.replace('__TEMPLATE_NAME__', template.name);
+		.replace('__STYLE_NAME__', template.name)
+		.replace('__STYLE_TEMPLATE__', template.value);
 
 	console.log(userMeaning, `Using template: ${template.name}`);
 	console.log(userMeaning, `Analysed text: ${analysisResult}`);
@@ -576,6 +584,10 @@ async function main() {
 						return;
 					}
 
+					// is the nullish coalescing operator really necessary here? if no style was provided, it would be undefined, not null. both falsy, but still...
+					// i want the intent to be clear, so i'll leave it in for now
+					const specifiedStyle = params[1] ?? null;
+
 					let imageResult: ImageGenerationResult;
 					try {
 						const metadata = {
@@ -585,7 +597,7 @@ async function main() {
 							trigger: 'custom',
 						};
 						const theme = getBroadcasterTheme(broadcasterName);
-						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
+						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme, specifiedStyle);
 					} catch (error) {
 						imageResult = { success: false, message: 'Error' };
 					}
@@ -735,7 +747,7 @@ async function main() {
 						return say(`@${userName} You will now receive AI sweatlings`);
 					});
 				}),
-				createBotCommand('ping', async (params, { userName, say }) => {
+				createBotCommand('ping', async (_params, { userName, say }) => {
 					if (userName.toLowerCase() !== 'partyhorst') return;
 
 					await messagesThrottle(() => {
@@ -802,7 +814,6 @@ async function main() {
 
 const appRootDir = await getAppRootDir();
 const tokenFilePath = path.join(appRootDir, 'data', 'tokens.json');
-const cheersCountFile = path.join(appRootDir, 'data', 'cheers.json');
 const imagesFilePath = path.join(appRootDir, 'data', 'images.json');
 const meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
 const themeFilePath = path.join(appRootDir, 'data', 'themes.json');
@@ -828,34 +839,46 @@ const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
 
 type DalleTemplate = {
 	name: string;
+	keyword: string;
 	value: string;
 };
 
 const dalleTemplates: DalleTemplate[] = [
 	{
 		name: 'illustration',
+		keyword: 'illustration',
 		value:
-			"In a vibrant, illustrated scene, a blue sweatling with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment], reflecting the theme '[theme]'. The sweatling [appearance] and its expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
+			"In a vibrant, illustrated scene, a blue character with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment], reflecting the theme '[theme]'. The character [appearance] and its expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
 	},
 	{
 		name: 'watercolor',
+		keyword: 'watercolor',
 		value:
-			"In a vibrant scene with a watercolor aesthetic, a blue sweatling with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment]. The sweatling [appearance] and its expression is [expression], and its posture is [posture]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
+			"In a vibrant scene with a watercolor aesthetic, a blue character with an orb-like round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects and environment]. The character [appearance] and its expression is [expression], and its posture is [posture]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
 	},
 	{
 		name: 'pixel art',
+		keyword: 'pixel',
 		value:
-			"A vibrant blue sweatling, with an orb-like round head and smooth skin, wearing [chosen outfit]. Its facial expression is [expression] and a posture that [posture]. Near the sweatling, there's a sign with bold letters spelling '[literal/verbatim username]'. This image is rendered in a pixel art style, capturing the essence of both the sweatling and the [theme]. The background is a vivid and pixelated [relevant theme], featuring [objects and environment]. A heart-shaped [object] is included in the pixel art scene.",
-	},
-	{
-		name: 'blocky pixel art',
-		value:
-			"A vibrant blue sweatling with an orb-like round head and smooth skin, wearing [chosen outfit]. The image should be rendered in a distinct blocky pixel art style, where pixels and blocks are clearly visible, emphasizing the digital, retro aesthetic. The sweatling's expression of [expression] should be captured through the simplicity of pixel art, set against a backdrop that includes [relevant theme]. This background should incorporate blocky representations of [relevant objects and environment] maintaining a cohesive theme within the pixel art framework. A heart-shaped [object] is included in the scene. The sign '[literal/verbatim username]' must be prominently displayed in the scene, executed in the same pixelated style. The composition should marry the charm of pixel art with the thematic elements.",
+			"In a vibrant, pixel art scene, a blue character with an orb-like round head, smooth skin, and wearing [chosen outfit] is depicted. The background is [attributes] and features [relevant theme, objects, and environment], reflecting the theme '[theme]'. The character [appearance] and its expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A sign spelling out '[literal/verbatim username]' in bold letters is prominently displayed. The scene, rendered in pixel art style, emphasizes its [scene attributes] nature with clear outlines and a focus on pixelated details to enhance the thematic elements.",
 	},
 	{
 		name: 'oil painting',
+		keyword: 'oil',
 		value:
-			"A blue vibrant creature with an orb-like round head and smooth skin, dressed in [chosen outfit], exudes an expression [expression]. This scene is depicted entirely in oil painting style, featuring elements such as [relevant theme, objects and environment]. The expressive and colorful strokes typical of oil paintings bring these items to life against a fantastical background. This non-realistic ambiance, rich in the charm and vibrancy of oil paint aesthetics, includes a sign reading '[literal/verbatim username]', seamlessly integrated within the whimsical setting. A heart-shaped [object] is included in the scene. The artwork is a celebration of the fusion of fantasy and the tactile qualities of oil painting, crafting a visually engaging narrative that captures the imagination.",
+			"In a vibrant, oil-painted scene, a blue character with an orb-like round head, smooth skin, and wearing [chosen outfit] is depicted. The background, rich in [attributes] and featuring [relevant theme, objects, and environment], reflects the theme '[theme]'. The character's expression is [expression], and its posture is [posture], suggesting [theme of the scene]. A heart-shaped [object] is prominently featured within this whimsical setting. A sign spelling out '[literal/verbatim username]' in bold, oil-painted letters is integrated into the scene. This artwork, executed in the oil painting style, emphasizes its [scene attributes] nature with expressive, colorful strokes typical of oil paintings.",
+	},
+	{
+		name: 'flat',
+		keyword: 'flat',
+		value:
+			"In a flat design illustration style scene, a blue character with an orb-like round head, smooth skin, and wearing [chosen outfit] stands out with minimalistic elegance. The background, characterized by bold colors and [attributes], features [relevant theme, objects, and environment] in a minimalistic illustration that reflects the theme '[theme]'. The character's expression is [expression], and its posture is [posture], perfectly embodying [theme of the scene] in a straightforward yet expressive manner. A heart-shaped [object] is prominently featured. A sign spelling out '[literal/verbatim username]' is boldly displayed within the scene. The scene emphasizes on clean lines and a lack of depth or texture, given its [scene attributes] nature.",
+	},
+	{
+		name: 'glitch art',
+		keyword: 'glitch',
+		value:
+			"In a glitch art piece, a blue character with an orb-like round head, smooth skin, and wearing [chosen outfit] is set against a backdrop of bold colors and [attributes], featuring [relevant theme, objects, and environment] with vibrant color shifts and digital distortions reflecting the theme '[theme]'. The character's expression is [expression], and its posture is [posture], both subtly disrupted by glitch effects that introduce digital errors and artifacts, hinting at [theme of the scene]. A heart-shaped [object] appears prominently, its form intermingled with glitch-induced visual distortions. A sign spelling out '[literal/verbatim username]' is boldly displayed, its letters experiencing the glitch aesthetic with color shiftss. This piece balances imperfect art with [scene attributes].",
 	},
 ];
 
@@ -879,7 +902,6 @@ try {
 
 	await Promise.all([
 		ensureFileExists(tokenFilePath),
-		ensureFileExists(cheersCountFile, JSON.stringify({ cheers: [] })),
 		ensureFileExists(imagesFilePath, JSON.stringify({})),
 		ensureFileExists(ignoreFilePath, JSON.stringify([])),
 		ensureFileExists(meaningsFilePath, JSON.stringify({})),
@@ -891,7 +913,6 @@ try {
 	await loadMeanings(meaningsFilePath);
 
 	console.log(`Using token file: ${tokenFilePath}`);
-	console.log(`Using cheers count file: ${cheersCountFile}`);
 	console.log(`Using images file: ${imagesFilePath}`);
 	console.log(`Using meanings file: ${meaningsFilePath}`);
 	console.log(`Using themes file: ${themeFilePath}`);
