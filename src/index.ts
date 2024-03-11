@@ -181,16 +181,16 @@ async function generateImage(
 
 	console.log(userMeaning, `Using template: ${template.name}`);
 	console.log(userMeaning, `Analysed text: ${analysisResult}`);
+
 	const sentenceResult = await openaiThrottle(() => {
 		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
-			...analysisMessages,
 			{
-				role: 'assistant',
-				content: analysisResult,
+				role: 'system',
+				content: queryScenarioPrompt,
 			},
 			{
 				role: 'user',
-				content: queryScenarioPrompt,
+				content: analysisResult,
 			},
 		];
 		return getChatCompletion(generatePromptMessages, 350);
@@ -215,7 +215,14 @@ async function generateImage(
 	console.log(userMeaning, 'Uploading image');
 	console.log(userMeaning, 'Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url!;
-	const uploadedImage = await cfUploader.uploadImageFromUrl(url, metadata);
+
+	const updatedMetadata = {
+		...metadata,
+		theme: theme,
+		style: style,
+	};
+
+	const uploadedImage = await cfUploader.uploadImageFromUrl(url, updatedMetadata);
 
 	if (!uploadedImage.success) {
 		console.log(userMeaning, `Image upload failed: ${uploadedImage.errors}`);
@@ -848,67 +855,67 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"In a vibrant, illustrated scene, a BLUE character with an orb-like, perfectly round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [character/theme relevant objects and environment], reflecting the theme [theme]. The character [appearance] and its facial expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
+			"In a vibrant, illustrated scene, a BLUE character with a perfectly round head, smooth blue skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"In a vibrant scene with a watercolor aesthetic, a BLUE character with an orb-like, perfectly round head, smooth skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [character/theme relevant objects and environment]. The character [appearance] and its facial expression is [expression], and its posture is [posture]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
+			"In a vibrant scene with a watercolor aesthetic, a BLUE character with a perfectly round head, smooth blue skin and wearing [chosen outfit] is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"In a vibrant, pixel art scene, a BLUE character with an orb-like, perfectly round head, smooth skin, and wearing [chosen outfit] is depicted. The background is [attributes] and features [character/theme relevant objects and environment], reflecting the theme [theme]. The character [appearance] and its facial expression is [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene, rendered in pixel art style, emphasizes its [scene attributes] nature with clear outlines and a focus on pixelated details to enhance the thematic elements.",
+			"In a vibrant, pixel art scene, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene, rendered in pixel art style, emphasizes its [scene attributes] nature with clear outlines and a focus on pixelated details to enhance the thematic elements.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"In a vibrant, oil-painted scene, a BLUE character with an orb-like, perfectly round head, smooth skin, and wearing [chosen outfit] is depicted. The background, rich in [attributes] and featuring [character/theme relevant objects and environment], reflects the theme [theme]. The character's facial expression is [expression], and its posture is [posture], suggesting [theme of the scene]. A heart-shaped [object] is prominently featured within this whimsical setting. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This artwork, executed in the oil painting style, emphasizes its [scene attributes] nature with expressive, colorful strokes typical of oil paintings.",
+			"In a vibrant, oil-painted scene, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured within this whimsical setting. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This artwork, executed in the oil painting style, emphasizes its [scene attributes] nature with expressive, colorful strokes typical of oil paintings.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"In a flat design illustration style scene, a BLUE character with an orb-like, perfectly round head, smooth skin, and wearing [chosen outfit] stands out with minimalistic elegance. The background, characterized by bold colors and [attributes], features [character/theme relevant objects and environment] in a minimalistic illustration that reflects the theme [theme]. The character's facial expression is [expression], and its posture is [posture], perfectly embodying [theme of the scene] in a straightforward yet expressive manner. A heart-shaped [object] is prominently featured. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene emphasizes on clean lines and a lack of depth or texture, given its [scene attributes] nature.",
+			"In a flat design illustration style scene, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] stands out with minimalistic elegance. The background, characterized by bold colors and [attributes], features [avatar/theme relevant objects and environment] in a minimalistic illustration that reflects [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene emphasizes on clean lines and a lack of depth or texture, given its [scene attributes] nature.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"In a glitch digital art drawing, a BLUE character with an orb-like, perfectly round head, smooth skin, and wearing [chosen outfit] is set against a backdrop of bold colors and [attributes], featuring [character/theme relevant objects and environment] with vibrant color shifts and digital distortions reflecting the theme [theme]. The character's facial expression is [expression], and its posture is [posture], both subtly disrupted by glitch effects that introduce digital errors and artifacts, hinting at [theme of the scene]. A heart-shaped [object] appears prominently, its form intermingled with glitch-induced visual distortions. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This piece balances imperfect art with [scene attributes].",
+			"In a glitch digital art drawing, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] is set against a backdrop of bold colors and [attributes], featuring [avatar/theme relevant objects and environment] with vibrant color shifts and distortions reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], both subtly disrupted by glitch effects, possibly suggesting [theme of the scene]. A heart-shaped [object] appears prominently, its form intermingled with glitch-induced visual distortions. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This piece balances imperfect art with [scene attributes].",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"In a Byzantine-inspired illustrated scene, a BLUE character with a little orb-like and cute little head and smooth skin, wearing [chosen outfit], stands against a gold background with [attributes]. This scene features [character/theme relevant objects and environment], in vibrant colors highlighting the theme [theme]. The character's facial expression is [expression] and posture [posture], symbolizing [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, emphasizing the Byzantine art's gold and vibrant palette.",
+			"In a Byzantine-inspired illustrated scene, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit], stands against a gold background with [attributes]. This scene features [avatar/theme relevant objects and environment], in vibrant colors highlighting the theme [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, emphasizing the Byzantine art's gold and vibrant palette.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"In an Expressionist style, a BLUE character with a little orb-like and cute little head, smooth skin, and [chosen outfit] embodies [theme] through intense colors. The background, with [attributes], includes [character/theme relevant objects and environment], using exaggerated emotions and forms. The character's expression [expression] and posture [posture] intensify the theme. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, showcasing [scene attributes] in true Expressionist fashion.",
+			"In an Expressionist style, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] embodies [theme] through intense colors. The background, with [attributes], includes [avatar/theme relevant objects and environment], using exaggerated emotions and forms. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, showcasing [scene attributes] in true Expressionist fashion.",
 	},
 	{
 		name: 'papercut',
 		keyword: 'papercut',
 		value:
-			"In a papercut digital art, a BLUE character with a little orb-like and cute little head and [chosen outfit] emerges from layers of paper, creating a dynamic scene. The background features [attributes], with [character/theme relevant objects and environment] in subtle, moving 2D layers. The character's expression [expression] and posture [posture] add to the narrative. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, enhancing the scene's depth and [scene attributes].",
+			"In a papercut digital art, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] emerges from layers of paper, creating a dynamic scene. The background features [attributes], with [avatar/theme relevant objects and environment] in subtle, moving 2D layers. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, enhancing the scene's depth and [scene attributes].",
 	},
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			"In a charcoal drawing, a BLUE character with a little orb-like and cute little head and [chosen outfit] contrasts against a textured background, reflecting [theme] with charcoal's raw texture. Bold strokes reveal [character/theme relevant objects and environment], adding emotional depth. The character's expression [expression] and posture [posture] enrich the scene. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, embodying [scene attributes] with authenticity.",
+			"In a charcoal drawing, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] contrasts against a textured background, reflecting [theme] with charcoal's raw texture. Bold strokes reveal [avatar/theme relevant objects and environment], adding emotional depth. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, embodying [scene attributes] with authenticity.",
 	},
 	{
 		name: 'neon graffity',
 		keyword: 'neon',
 		value:
-			"In neon graffiti art, a BLUE character with a little orb-like and cute little head and [chosen outfit] pops from an urban wall, highlighting [theme] with neon vibrancy. The backdrop blends tags, murals, and spray-paint, capturing [character relevant themes, objects, and environment] with urban spirit. The character's expression [expression] and posture [posture] echo graffiti's dynamism. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene with luminous hues and bold lines, reflecting [scene attributes] with urban energy.",
+			"In neon graffiti art, a BLUE character with a perfectly round head, smooth blue skin, and wearing [chosen outfit] pops from an urban wall, highlighting [theme] with neon vibrancy. The backdrop blends tags, murals, and spray-paint, capturing [avatar/theme relevant objects and environment]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene with luminous hues and bold lines, reflecting [scene attributes] with urban energy.",
 	},
 ];
 
