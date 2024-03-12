@@ -198,7 +198,7 @@ async function generateImage(
 
 	console.log(userMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: ${sentenceResult}`;
+	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, DO NOT rewrite this prompt, just use it AS-IS: ${sentenceResult}`;
 	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
 	const image = await dalleThrottle(() => {
@@ -330,7 +330,7 @@ async function handleEventAndSendImageMessage(
 		});
 		return;
 	}
-	const numImages = await storeImageData(broadcasterName, target, {
+	await storeImageData(broadcasterName, target, {
 		image: imageResult.message,
 		analysis: imageResult.analysis,
 		revisedPrompt: imageResult.revisedPrompt,
@@ -340,7 +340,7 @@ async function handleEventAndSendImageMessage(
 	try {
 		discordBot.user!.setActivity({
 			name: 'ImageGenerations',
-			state: `🖼️ ${numImages} images generated`,
+			state: `🖼️ generating images`,
 			type: ActivityType.Custom,
 		});
 	} catch (error) {
@@ -430,8 +430,6 @@ const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(
 
 async function main() {
 	try {
-		const numImages = await getImageData(twitchChannels[0]);
-
 		const discordBot = new DiscordClient({
 			intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages],
 			partials: [Partials.Channel, Partials.Message],
@@ -439,7 +437,7 @@ async function main() {
 				activities: [
 					{
 						name: 'ImageGenerations',
-						state: `🖼️ ${numImages} images generated`,
+						state: `🖼️ generating images`,
 						type: ActivityType.Custom,
 					},
 				],
@@ -509,22 +507,12 @@ async function main() {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
 					}
-					const numImages = await storeImageData(broadcasterName, param, {
+					await storeImageData(broadcasterName, param, {
 						image: imageResult.message,
 						analysis: imageResult.analysis,
 						revisedPrompt: imageResult.revisedPrompt,
 						date: new Date().toISOString(),
 					});
-
-					try {
-						discordBot.user!.setActivity({
-							name: 'ImageGenerations',
-							state: `🖼️ ${numImages} images generated`,
-							type: ActivityType.Custom,
-						});
-					} catch (error) {
-						console.log('Discord error', error);
-					}
 
 					for (const channelId of discordChannels) {
 						const channel = discordBot.channels.cache.get(channelId);
@@ -616,7 +604,7 @@ async function main() {
 
 						return;
 					}
-					const numImages = await storeImageData(broadcasterName, params[0], {
+					await storeImageData(broadcasterName, params[0], {
 						image: imageResult.message,
 						analysis: imageResult.analysis,
 						revisedPrompt: imageResult.revisedPrompt,
@@ -626,7 +614,7 @@ async function main() {
 					try {
 						discordBot.user!.setActivity({
 							name: 'ImageGenerations',
-							state: `🖼️ ${numImages} images generated`,
+							state: `🖼️ generating images`,
 							type: ActivityType.Custom,
 						});
 					} catch (error) {
