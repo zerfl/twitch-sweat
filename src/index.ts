@@ -325,7 +325,7 @@ async function handleEventAndSendImageMessage(
 		await messagesThrottle(() => {
 			return twitchBot.say(
 				broadcasterName,
-				`Thank you @${target} for ${verb} twiggy28Lovedragon Unfortunately, I was unable to generate an image for you.`,
+				`Thank you @${target} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
 			);
 		});
 		return;
@@ -363,7 +363,7 @@ async function handleEventAndSendImageMessage(
 
 		return twitchBot.say(
 			broadcasterName,
-			`Thank you @${target} for ${verb} twiggy28Lovedragon This is for you: ${imageResult.message}`,
+			`Thank you @${target} for ${verb} dnkLove This is for you: ${imageResult.message}`,
 		);
 	});
 }
