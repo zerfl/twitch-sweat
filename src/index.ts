@@ -20,8 +20,6 @@ const requiredEnvVars = [
 	'OPENAI_API_KEY',
 	'OPENAI_API_KEY_FUN',
 	'OPENAI_IMAGES_PER_MINUTE',
-	'OPENAI_ANALYZER_PROMPT',
-	'OPENAI_SCENARIO_PROMPT',
 	'DISCORD_BOT_TOKEN',
 	'DISCORD_CHANNELS',
 	'DISCORD_ADMIN_USER_ID',
@@ -138,7 +136,9 @@ async function generateImage(
 			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
 			: `Username: ${username}`;
 	const themeMessage = theme ? `Make sure to incorporate the theme '${theme}' into the scene.` : '';
-	const queryAnalzerPrompt = analyzerPrompt.replace('__THEME__', themeMessage);
+
+	const analyzerPromptDate = analyzerPrompt.replace('__DATE__', new Date().toISOString());
+	const queryAnalzerPrompt = analyzerPromptDate.replace('__THEME__', themeMessage);
 
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
@@ -326,21 +326,11 @@ async function handleEventAndSendImageMessage(
 		date: new Date().toISOString(),
 	});
 
-	try {
-		discordBot.user!.setActivity({
-			name: 'ImageGenerations',
-			state: `🖼️ generating images`,
-			type: ActivityType.Custom,
-		});
-	} catch (error) {
-		console.log('Discord error', error);
-	}
-
 	for (const channelId of discordChannels) {
 		const channel = discordBot.channels.cache.get(channelId);
 		if (channel && channel.isTextBased()) {
 			try {
-				await channel.send(`Thank you @${target} for ${verb}. Here's your sweatling: ${imageResult.message}`);
+				await channel.send(`Thank you \`${target}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
 			} catch (error) {
 				console.log(`Error sending message to channel ${channelId}`, error);
 			}
@@ -508,7 +498,7 @@ async function main() {
 						if (channel && channel.isTextBased()) {
 							try {
 								await channel.send(
-									`Thank you @${param} for subscribing. Here's your sweatling: ${imageResult.message}`,
+									`Thank you \`${param}\` for subscribing. Here's your sweatling: ${imageResult.message}`,
 								);
 							} catch (error) {
 								console.log(`Error sending message to channel ${channelId}`, error);
@@ -615,7 +605,7 @@ async function main() {
 						if (channel && channel.isTextBased()) {
 							try {
 								await channel.send(
-									`@${userName} requested generation for @${target}. Here's the sweatling: ${imageResult.message}`,
+									`@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
 								);
 							} catch (error) {
 								console.log(`Error sending message to channel ${channelId}`, error);
@@ -826,8 +816,6 @@ const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, pr
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
-const analyzerPrompt = process.env.OPENAI_ANALYZER_PROMPT!;
-const scenarioPrompt = process.env.OPENAI_SCENARIO_PROMPT!;
 const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
@@ -842,72 +830,119 @@ type DalleTemplate = {
 	value: string;
 };
 
+const analyzerPrompt = `Today is __DATE__.
+
+Dissect the given username into its component words, considering common memes, abbreviations, and cultural references. Provide a brief and insightful interpretation in a single sentence, exploring the literal meaning. If relevant, include interpretations from other languages to ensure a comprehensive understanding.
+
+Then start a new paragraph. Your task is to use the interpretation of the username and transform it into a captivating and whimsical scene. You are required to pick the most recognizable and obvious elements of the interpretation that are safe for work that reflect the username. This prompt will guide the creation of an artwork, ensuring that anyone viewing the final image can immediately recognize the connection to the username. Write three sentences. The first describes the avatar's facial expression, the second describes its posture and the third describes its appearance. Make sure to always pick relevant clothing and bias towards an orange hoodie, unless something more relevant can be chosen (VERY IMPORTANT). Then, describe a vivid and detailed description of a fitting background scene.__THEME__
+
+Analyse the interpretation and suggest what themes, objects and general environment would be fitting and relevant for an epic and whimsical scene featuring that user. Refer to any characters as 'avatar'. Use this format:
+
+Username's interpretation:
+
+Avatar's full facial expression:
+Avatar's posture:
+Avatar's outfit:
+
+Scene description:`;
+
+const scenarioPrompt = `Objective: Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the image style defined as __STYLE_NAME__, must remain unchanged. Your input should only enhance the placeholders, injecting creativity and relevance based on the context provided.
+
+__STYLE_TEMPLATE__
+
+Instructions:
+
+Creativity Within Constraints: use the provided information to fill in each placeholder. Your creativity is essential in enriching these specifics, ensuring they resonate with the overall theme and style indicated.
+Preserve Template Integrity: Make adjustments strictly within the brackets []. The template's wording and structure must remain untouched.
+Direct Implementation: Your completion will directly inform a DALL-E3 image generation process. It's imperative that the filled-in details are both imaginative and precisely tailored to fit the placeholders, as there is no room for subsequent revisions or confirmations.
+Example: If the provided summary indicates an avatar wearing 'orange futuristic armor' against a 'dystopian cityscape,' your task is to insert these details exactly as follows: 'orange futuristic armor' for the outfit and 'dystopian cityscape' for the background theme, including details.
+
+Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use in DALL-E3 image generation, reflecting the specified style and theme without altering the template's original form. Return only the completed template.`;
+
 const dalleTemplates: DalleTemplate[] = [
 	{
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"In a vibrant, illustrated scene, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have clear outlines and a drawn illustration style, emphasizing its [scene attributes] nature.",
+			"An illustrated scene features a BLUE character with a spherical and body-proportionate head, wearing [outfit], and showing [expression] in [posture]. The background of [environment attributes] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"In a vibrant scene with a watercolor aesthetic, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene should have a painted watercolor style, emphasizing its [scene attributes].",
+			"A watercolor scene depicts a BLUE character with a spherical and body-proportionate head, dressed in [outfit], with expressive eyes showing [expression] in [posture]. The soft, fluid background of [environment attributes] includes a heart-shaped [object] and '[literal username]' banner.",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"In a vibrant, pixel art scene, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted. The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured in the scene. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene, rendered in pixel art style, emphasizes its [scene attributes] nature with clear outlines and a focus on pixelated details to enhance the thematic elements.",
+			"In a pixel art scene, a BLUE character with a spherical and body-proportionate head, in [outfit], positioned in [posture] with [expression]. The pixelated background features [environment attributes] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"In a vibrant, oil-painted scene, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted The background is [attributes] and features [avatar/theme relevant objects and environment], reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured within this whimsical setting. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This artwork, executed in the oil painting style, emphasizes its [scene attributes] nature with expressive, colorful strokes typical of oil paintings.",
+			"An oil-painted scene with a BLUE character with a spherical and body-proportionate head, dressed in [outfit], showing [expression] in [posture]. The rich, textured background of [environment attributes] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"In a flat design illustration style scene, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted.. The background, characterized by bold colors and [attributes], features [avatar/theme relevant objects and environment] in a minimalistic illustration that reflects [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] is prominently featured. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. The scene emphasizes on clean lines and a lack of depth or texture, given its [scene attributes] nature.",
+			"A flat design illustration features a BLUE character with a spherical and body-proportionate head, in [outfit], portraying [expression] in [posture]. The simplistic background with bold colors and [environment attributes] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"In a glitch digital art drawing, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is set against a backdrop of bold colors and [attributes], featuring [avatar/theme relevant objects and environment] with vibrant color shifts and distortions reflecting [theme]. The character [appearance] and [expression], and its posture is [posture], both subtly disrupted by glitch effects, possibly suggesting [theme of the scene]. A heart-shaped [object] appears prominently, its form intermingled with glitch-induced visual distortions. A banner with bold letters '[literal/verbatim username]' is prominently integrated into the scene. This piece balances imperfect art with [scene attributes].",
+			"In a glitch art scene, a BLUE character with a spherical and body-proportionate head, in [outfit] displays [expression] in [posture] against a backdrop of [environment attributes] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"In a Byzantine-inspired illustrated scene, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture, stands against a gold background with [attributes]. This scene features [avatar/theme relevant objects and environment], in vibrant colors highlighting the theme [theme]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, emphasizing the Byzantine art's gold and vibrant palette.",
+			"A Byzantine-inspired scene features a BLUE character with a spherical and body-proportionate head, in [outfit] with [expression] standing in [posture]. The golden and vibrant background of [environment attributes] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"In an Expressionist style, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture is depicted. The background, with [attributes], includes [avatar/theme relevant objects and environment], using exaggerated emotions and forms. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, showcasing [scene attributes] in true Expressionist fashion.",
+			"An Expressionist scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing exaggerated [expression] in [posture]. The emotionally charged background of [environment attributes] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
 	},
 	{
 		name: 'papercut',
 		keyword: 'papercut',
 		value:
-			"In a papercut digital art, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture emerges from layers of paper, creating a dynamic scene. The background features [attributes], with [avatar/theme relevant objects and environment] in subtle, moving 2D layers. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, enhancing the scene's depth and [scene attributes].",
+			"A papercut style scene with a BLUE character with a spherical and body-proportionate head, wearing [outfit], exhibiting [expression] in [posture]. The layered paper background of [environment attributes] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
 	},
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			"In a charcoal drawing, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture contrasts against a textured background, reflecting [theme] with charcoal's raw texture. Bold strokes reveal [avatar/theme relevant objects and environment], adding emotional depth. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene, embodying [scene attributes] with authenticity.",
+			"In a charcoal drawing, a BLUE character with a spherical and body-proportionate head, dressed in [outfit] shows deep [expression] in [posture] against a raw textured background of [environment attributes]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
 	},
 	{
-		name: 'neon graffity',
+		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			"In neon graffiti art, a BLUE character with a spherical and body-proportionate head, dressed in [chosen outfit], with expressive eyes and a smooth skin texture pops from an urban wall, highlighting [theme] with neon vibrancy. The backdrop blends tags, murals, and spray-paint, capturing [avatar/theme relevant objects and environment]. The character [appearance] and [expression], and its posture is [posture], possibly suggesting [theme of the scene]. A heart-shaped [object] and a banner with bold letters '[literal/verbatim username]' are prominently integrated into the scene with luminous hues and bold lines, reflecting [scene attributes] with urban energy.",
+			"A neon graffiti scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with [expression] in [posture] against an urban backdrop of [environment attributes]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
+	},
+	{
+		name: 'vintage manga',
+		keyword: 'vintagemanga',
+		value:
+			"A 1980s manga style scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing [expression] in [posture]. The backdrop of [environment attributes] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
+	},
+	{
+		name: 'Rumiko Takahashi style',
+		keyword: 'takahashi',
+		value:
+			"Inspired by Rumiko Takahashi, this scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with dreamy [expression] in [posture]. The grainy, surreal background of [environment attributes] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
+	},
+	{
+		name: 'Yoshiyuki Sadamoto style',
+		keyword: 'sadamoto',
+		value:
+			"In Yoshiyuki Sadamoto's style, a BLUE character with a spherical and body-proportionate head, in [outfit] ponders with vibrant [expression] in [posture]. The dystopian and surreal background of [environment attributes] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
 	},
 ];
 

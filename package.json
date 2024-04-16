@@ -1,6 +1,6 @@
 {
   "name": "twitch-sweat",
-  "version": "1.4.8",
+  "version": "1.5.0",
   "description": "",
   "type": "module",
   "main": "src/index.ts",
