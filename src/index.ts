@@ -170,11 +170,12 @@ async function generateImage(
 
 	let template;
 	if (style) {
-		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style.toLowerCase());
+		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style!.toLowerCase());
 	}
 	if (!template) {
 		const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
-		template = dalleTemplates[templateIndex];
+		template = dalleTemplates[templateIndex] as DalleTemplate;
+		style = template.keyword.toLowerCase();
 	}
 	const queryScenarioPrompt = scenarioPrompt
 		.replace('__STYLE_NAME__', template.name)
@@ -857,17 +858,17 @@ Format:
 - Avatar's outfit:
 - Scene description:`;
 
-const scenarioPrompt = `Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the image style defined as __STYLE_NAME__, must remain unchanged. Your input should only enhance the placeholders, injecting creativity and relevance based on the context provided.
+const scenarioPrompt = `Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the image style defined as __STYLE_NAME__, MUST remain unchanged. Your input MUST only replace the placeholders, injecting creativity and relevance based on the context provided.
 
 Template:
 __STYLE_TEMPLATE__
 
 Instructions:
 Use the provided information to fill in each placeholder. Ensure they resonate with the overall theme and style indicated.
-adjustments strictly within the brackets []. The template's wording and structure must remain untouched.
-Your completion will directly inform a DALL-E3 image generation process. It's imperative that the filled-in details are both imaginative and precisely tailored to fit the placeholders, as there is no room for subsequent revisions or confirmations.
+Make adjustments strictly within the brackets []. The template's wording MUST remain untouched.
+Your completion will directly inform a DALL-E3 image generation process. It's imperative that the filled-in details are safe for work, imaginative and precisely tailored to fit the placeholders, as there is no room for subsequent revisions or confirmations.
 
-Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use in DALL-E3 image generation, reflecting the specified style and theme without altering the template's original form. Skip the preamble and provide only the processed text.`;
+Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use in DALL-E3 image generation, reflecting the specified style and theme. Do not ALTER text outside the brackets. Skip the preamble and provide only the processed text.`;
 
 const dalleTemplates: DalleTemplate[] = [
 	{
