@@ -864,85 +864,85 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"An illustrated scene features a BLUE character with a spherical and body-proportionate head, wearing [outfit], and showing [expression] in [posture]. The background of [environment attributes] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
+			"An illustrated scene features a BLUE character with a spherical and body-proportionate head, wearing [outfit], and showing [expression] in [posture]. The background of [scene and environment attributes] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"A watercolor scene depicts a BLUE character with a spherical and body-proportionate head, dressed in [outfit], with expressive eyes showing [expression] in [posture]. The soft, fluid background of [environment attributes] includes a heart-shaped [object] and '[literal username]' banner.",
+			"A watercolor scene depicts a BLUE character with a spherical and body-proportionate head, dressed in [outfit], with expressive eyes showing [expression] in [posture]. The soft, fluid background of [scene and environment attributes] includes a heart-shaped [object] and '[literal username]' banner.",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"In a pixel art scene, a BLUE character with a spherical and body-proportionate head, in [outfit], positioned in [posture] with [expression]. The pixelated background features [environment attributes] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
+			"In a pixel art scene, a BLUE character with a spherical and body-proportionate head, in [outfit], positioned in [posture] with [expression]. The pixelated background features [scene and environment attributes] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"An oil-painted scene with a BLUE character with a spherical and body-proportionate head, dressed in [outfit], showing [expression] in [posture]. The rich, textured background of [environment attributes] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
+			"An oil-painted scene with a BLUE character with a spherical and body-proportionate head, dressed in [outfit], showing [expression] in [posture]. The rich, textured background of [scene and environment attributes] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"A flat design illustration features a BLUE character with a spherical and body-proportionate head, in [outfit], portraying [expression] in [posture]. The simplistic background with bold colors and [environment attributes] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
+			"A flat design illustration features a BLUE character with a spherical and body-proportionate head, in [outfit], portraying [expression] in [posture]. The simplistic background with bold colors and [scene and environment attributes] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"In a glitch art scene, a BLUE character with a spherical and body-proportionate head, in [outfit] displays [expression] in [posture] against a backdrop of [environment attributes] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
+			"In a glitch art scene, a BLUE character with a spherical and body-proportionate head, in [outfit] displays [expression] in [posture] against a backdrop of [scene and environment attributes] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"A Byzantine-inspired scene features a BLUE character with a spherical and body-proportionate head, in [outfit] with [expression] standing in [posture]. The golden and vibrant background of [environment attributes] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
+			"A Byzantine-inspired scene features a BLUE character with a spherical and body-proportionate head, in [outfit] with [expression] standing in [posture]. The golden and vibrant background of [scene and environment attributes] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"An Expressionist scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing exaggerated [expression] in [posture]. The emotionally charged background of [environment attributes] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
+			"An Expressionist scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing exaggerated [expression] in [posture]. The emotionally charged background of [scene and environment attributes] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
 	},
 	{
 		name: 'papercut',
 		keyword: 'papercut',
 		value:
-			"A papercut style scene with a BLUE character with a spherical and body-proportionate head, wearing [outfit], exhibiting [expression] in [posture]. The layered paper background of [environment attributes] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
+			"A papercut style scene with a BLUE character with a spherical and body-proportionate head, wearing [outfit], exhibiting [expression] in [posture]. The layered paper background of [scene and environment attributes] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
 	},
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			"In a charcoal drawing, a BLUE character with a spherical and body-proportionate head, dressed in [outfit] shows deep [expression] in [posture] against a raw textured background of [environment attributes]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
+			"In a charcoal drawing, a BLUE character with a spherical and body-proportionate head, dressed in [outfit] shows deep [expression] in [posture] against a raw textured background of [scene and environment attributes]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
 	},
 	{
 		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			"A neon graffiti scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with [expression] in [posture] against an urban backdrop of [environment attributes]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
+			"A neon graffiti scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with [expression] in [posture] against an urban backdrop of [scene and environment attributes]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
 	},
 	{
 		name: 'vintage manga',
 		keyword: 'vintagemanga',
 		value:
-			"A 1980s manga style scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing [expression] in [posture]. The backdrop of [environment attributes] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
+			"A 1980s manga style scene depicts a BLUE character with a spherical and body-proportionate head, in [outfit], showing [expression] in [posture]. The backdrop of [scene and environment attributes] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
 	},
 	{
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			"Inspired by Rumiko Takahashi, this scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with dreamy [expression] in [posture]. The grainy, surreal background of [environment attributes] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
+			"Inspired by Rumiko Takahashi, this scene features a BLUE character with a spherical and body-proportionate head, in [outfit], with dreamy [expression] in [posture]. The grainy, surreal background of [scene and environment attributes] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			"In Yoshiyuki Sadamoto's style, a BLUE character with a spherical and body-proportionate head, in [outfit] ponders with vibrant [expression] in [posture]. The dystopian and surreal background of [environment attributes] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
+			"In Yoshiyuki Sadamoto's style, a BLUE character with a spherical and body-proportionate head, in [outfit] ponders with vibrant [expression] in [posture]. The dystopian and surreal background of [scene and environment attributes] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
 	},
 ];
 
