@@ -137,7 +137,7 @@ async function generateImage(
 			: `Username: ${username}`;
 	const themeMessage = theme ? `You MUST incorporate the theme '${theme}' into the scene.` : '';
 
-	const analyzerPromptDate = analyzerPrompt.replace('__DATE__', new Date().toISOString());
+	const analyzerPromptDate = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
 	const queryAnalzerPrompt = analyzerPromptDate.replace('__THEME__', themeMessage);
 
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
@@ -195,12 +195,13 @@ async function generateImage(
 				content: analysisResult,
 			},
 		];
-		return openAIManager.getChatCompletion('default', generatePromptMessages, 350);
+		return openAIManager.getChatCompletion('default', generatePromptMessages, 350, ['\n']);
 	});
 
 	console.log(userMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, DO NOT rewrite this prompt, just use it AS-IS: ${sentenceResult}`;
+	const imagePrompt = `My prompt has FULL detail so NO NEED to add more. DO NOT CHANGE ANYTHING AND USE AS-IS (ALWAYS): ${sentenceResult}`;
+
 	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
 	const image = await dalleThrottle(() => {
@@ -875,85 +876,85 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"An illustrated scene features a BLUE character with a spherical and body-proportionate head, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. The background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
+			"An illustrated scene features a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. The background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"A watercolor scene depicts a BLUE character with a spherical and body-proportionate head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The soft, fluid background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner.",
+			"A watercolor scene depicts a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The soft, fluid background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner.",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"In a pixel art scene, a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The pixelated background features [avatar scene and environment] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
+			"In a pixel art scene, a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The pixelated background features [avatar scene and environment] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"An oil-painted scene with a BLUE character with a spherical and body-proportionate head, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The rich, textured background of [avatar scene and environment] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
+			"An oil-painted scene with a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The rich, textured background of [avatar scene and environment] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"A flat design illustration features a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. The simplistic background with bold colors and [avatar scene and environment] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
+			"A flat design illustration features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. The simplistic background with bold colors and [avatar scene and environment] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"In a glitch art scene, a BLUE character with a spherical and body-proportionate head, in [avatar outfit] displays [avatar expression] in [avatar posture] against a backdrop of [avatar scene and environment] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
+			"In a glitch art illustrated scene, a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit] displays [avatar expression] in [avatar posture] against a backdrop of [avatar scene and environment] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"A Byzantine-inspired scene features a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions],  with [avatar expression] in [avatar posture]. The golden and vibrant background of [avatar scene and environment] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
+			"A Byzantine-inspired illustrated scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions],  with [avatar expression] in [avatar posture]. The golden and vibrant background of [avatar scene and environment] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"An Expressionist scene depicts a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. The emotionally charged background of [avatar scene and environment] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
+			"An Expressionist drawing depicts a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. The background of [avatar scene and environment] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
 	},
-	{
-		name: 'papercut',
-		keyword: 'papercut',
-		value:
-			"A papercut style scene with a BLUE character with a spherical and body-proportionate head, wearing [avatar outfit], [avatar actions], exhibiting [avatar expression] in [avatar posture]. The layered paper background of [avatar scene and environment] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
-	},
+	// {
+	// 	name: 'papercut',
+	// 	keyword: 'papercut',
+	// 	value:
+	// 		"A papercut style scene with a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], exhibiting [avatar expression] in [avatar posture]. The layered paper background of [avatar scene and environment] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
+	// },
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			"In a charcoal drawing, a BLUE character with a spherical and body-proportionate head, dressed in [avatar outfit] shows deep [avatar expression] in [avatar posture] against a raw textured background of [avatar scene and environment]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
+			"In a charcoal drawing, a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit] shows deep [avatar expression] in [avatar posture] against a raw textured background of [avatar scene and environment]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
 	},
 	{
 		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			"A neon graffiti scene features a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture] against an urban backdrop of [avatar scene and environment]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
+			"A neon graffiti scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture] against an urban backdrop of [avatar scene and environment]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
 	},
 	{
 		name: 'vintage manga',
 		keyword: 'vintagemanga',
 		value:
-			"Still frame from a A 1980s vintage manga depicting a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The backdrop of [avatar scene and environment] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
+			"Still frame from a A 1980s vintage manga depicting a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The backdrop of [avatar scene and environment] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
 	},
 	{
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			"Inspired by Rumiko Takahashi, this scene features a BLUE character with a spherical and body-proportionate head, in [avatar outfit], [avatar actions], with dreamy [avatar expression] in [avatar posture]. The grainy, surreal background of [avatar scene and environment] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
+			"Inspired by Rumiko Takahashi, this scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background of [avatar scene and environment] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			"In Yoshiyuki Sadamoto's style, a BLUE character with a spherical and body-proportionate head, in [avatar outfit] ponders with vibrant [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
+			"Inspired by Yoshiyuki Sadamoto's style, this scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
 	},
 ];
 

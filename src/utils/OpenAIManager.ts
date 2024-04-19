@@ -20,6 +20,7 @@ export class OpenAIManager {
 		clientKey: ClientKey,
 		messages: OpenAI.ChatCompletionMessageParam[],
 		length: number = 256,
+		stop: string[] = [],
 	): Promise<string> {
 		const client = this.clients[clientKey];
 		if (!client) {
@@ -31,6 +32,7 @@ export class OpenAIManager {
 			model: 'gpt-3.5-turbo-0613',
 			temperature: 1,
 			max_tokens: length,
+			stop: stop.length ? stop : null,
 		});
 
 		if (!completion.choices[0]?.message?.content) {
