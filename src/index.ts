@@ -135,7 +135,7 @@ async function generateImage(
 		userMeaning !== username
 			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
 			: `Username: ${username}`;
-	const themeMessage = theme ? `You MUST incorporate the theme '${theme}' into the scene.` : '';
+	const themeMessage = theme ? ` APPLY THE FOLLOWING THEME INTO THE SCENE: '${theme}'` : '';
 
 	const analyzerPromptDate = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
 	const queryAnalzerPrompt = analyzerPromptDate.replace('__THEME__', themeMessage);
