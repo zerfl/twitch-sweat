@@ -135,11 +135,8 @@ async function generateImage(
 		userMeaning !== username
 			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
 			: `Username: ${username}`;
-	const themeMessage = theme ? ` APPLY THE FOLLOWING THEME INTO THE SCENE: '${theme}'` : '';
 
-	const analyzerPromptDate = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
-	const queryAnalzerPrompt = analyzerPromptDate.replace('__THEME__', themeMessage);
-
+	const queryAnalzerPrompt = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
@@ -166,6 +163,26 @@ async function generateImage(
 	if (!analysisResult.endsWith('.')) {
 		analysisResult += '.';
 	}
+
+	if (theme) {
+		console.log(userMeaning, `Original analysis: ${analysisResult}`);
+
+		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
+			{
+				role: 'system',
+				content: themePrompt.replace('__THEME_', theme),
+			},
+			{
+				role: 'user',
+				content: analysisResult,
+			},
+		];
+		analysisResult = await openaiThrottle(() => {
+			console.log(userMeaning, `Adding theme: ${theme} / ${analysisResult}`);
+			return openAIManager.getChatCompletion('default', themeMessages, 400);
+		});
+	}
+
 	analysisResult = `- Literal username: ${username}\n${analysisResult}`;
 
 	let template;
@@ -848,12 +865,20 @@ const analyzerPrompt = `Today is __DATE__.
 
 Dissect the given username into its component words, considering common memes, abbreviations, cultural references, and linguistic interpretations. Provide a brief and insightful interpretation in a single sentence, exploring both the literal meaning and any significant cultural or linguistic implications. This includes recognizing names, places, or phrases that might not translate directly into English but carry meaning in other languages.
 
-Write three sentences: The first describes the avatar's facial expression, the second describes its posture, and the third describes its outfit and appearance. Always choose an outfit that directly connects to the username, **BIAS TOWARDS AN ORANGE HOODIE**, unless another outfit more vividly reflects the username (IMPORTANT).
+Write three sentences: The first describes the avatar's facial expression, the second describes its posture, and the third describes its outfit and appearance. Always choose an outfit that directly connects to the username, BIAS TOWARDS AN ORANGE HOODIE, unless another outfit more vividly reflects the username (IMPORTANT).
 
-Transform the interpretation of the username into a scene that is delightfully odd and comically exaggerated. Each element of the scene should creatively reflect and enhance aspects of the username, ensuring that the humor and oddity arise directly from these interpretations. Craft a setting that surprises and entertains, while clearly maintaining a strong thematic link to the username. Describe a detailed background scene that not only resonates clearly with the username but also invokes laughter and amusement through its creative and unexpected twists, directly inspired by the username's unique elements. Use the key elements and themes identified in the username interpretation to determine an appropriate and relevant setting for the scene.__THEME__
+Transform the interpretation of the username into a scene that is delightfully odd and comically exaggerated. Each element of the scene should creatively reflect and enhance aspects of the username, ensuring that the humor and oddity arise directly from these interpretations. Craft a setting that surprises and entertains, while clearly maintaining a strong thematic link to the username. Describe a detailed background scene that not only resonates clearly with the username but also invokes laughter and amusement through its creative and unexpected twists, directly inspired by the username's unique elements. Use the key elements and themes identified in the username interpretation to determine a relevant setting for the scene.
 
-Format:
+Use this format:
 - Username's interpretation:
+- Avatar's full facial expression:
+- Avatar's posture:
+- Avatar's outfit:
+- Scene description:`;
+
+const themePrompt = `Provided to you is the interpretation of a username, including details for a scene. Your task it to subtly infuse the provided details of the avatar and scene with today's theme: "__THEME_". The original scene details should be preserved, with the theme subtly integrated into the avatar's appearance and the scene's environment. Ensure that the original interpretation and the username remain unchanged.
+
+Use this format:
 - Avatar's full facial expression:
 - Avatar's posture:
 - Avatar's outfit:
@@ -948,13 +973,13 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			"Inspired by Rumiko Takahashi, this scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background of [avatar scene and environment] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
+			"An illustrated scene featuring a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background of [avatar scene and environment] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			"Inspired by Yoshiyuki Sadamoto's style, this scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
+			"An illustrated scene scene featuring a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
 	},
 ];
 
