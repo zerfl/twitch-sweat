@@ -29,7 +29,7 @@ export class OpenAIManager {
 
 		const completion = await client.chat.completions.create({
 			messages: messages,
-			model: 'gpt-3.5-turbo-0613',
+			model: 'gpt-3.5-turbo',
 			temperature: 1,
 			max_tokens: length,
 			stop: stop.length ? stop : null,

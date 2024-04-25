@@ -10,6 +10,7 @@ import throttledQueue from 'throttled-queue';
 import { IgnoreListManager } from './utils/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
+import { nanoid } from 'nanoid';
 
 const requiredEnvVars = [
 	'TWITCH_CLIENT_ID',
@@ -130,6 +131,8 @@ async function generateImage(
 	theme: string,
 	style: string | null = null,
 ): Promise<ImageGenerationResult> {
+	const uniqueId = nanoid(14);
+
 	const userMeaning = getUserMeaning(username.toLowerCase());
 	const queryMessage =
 		userMeaning !== username
@@ -149,7 +152,7 @@ async function generateImage(
 	];
 
 	let analysisResult = await openaiThrottle(() => {
-		console.log(userMeaning, `Analysing text: ${username} / ${userMeaning}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${username} / ${userMeaning}`);
 		return openAIManager.getChatCompletion('default', analysisMessages, 400);
 	});
 
@@ -165,7 +168,7 @@ async function generateImage(
 	}
 
 	if (theme) {
-		console.log(userMeaning, `Original analysis: ${analysisResult}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Original analysis: ${analysisResult}`);
 
 		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
@@ -178,7 +181,7 @@ async function generateImage(
 			},
 		];
 		analysisResult = await openaiThrottle(() => {
-			console.log(userMeaning, `Adding theme: ${theme} / ${analysisResult}`);
+			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme} / ${analysisResult}`);
 			return openAIManager.getChatCompletion('default', themeMessages, 400);
 		});
 	}
@@ -198,8 +201,8 @@ async function generateImage(
 		.replace('__STYLE_NAME__', template.name)
 		.replace('__STYLE_TEMPLATE__', template.value);
 
-	console.log(userMeaning, `Using template: ${template.name}`);
-	console.log(userMeaning, `Analysed text: ${analysisResult}`);
+	console.log(`[${uniqueId}]`, userMeaning, `Using template: ${template.name}`);
+	console.log(`[${uniqueId}]`, userMeaning, `Analysed text: ${analysisResult}`);
 
 	const sentenceResult = await openaiThrottle(() => {
 		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
@@ -212,17 +215,17 @@ async function generateImage(
 				content: analysisResult,
 			},
 		];
-		return openAIManager.getChatCompletion('default', generatePromptMessages, 350, ['\n']);
+		return openAIManager.getChatCompletion('default', generatePromptMessages, 400, ['\n']);
 	});
 
-	console.log(userMeaning, `Generated sentence: ${sentenceResult}`);
+	console.log(`[${uniqueId}]`, userMeaning, `Generated sentence: ${sentenceResult}`);
 
 	const imagePrompt = `My prompt has FULL detail so NO NEED to add more. DO NOT CHANGE ANYTHING AND USE AS-IS (ALWAYS): ${sentenceResult}`;
 
 	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
 	const image = await dalleThrottle(() => {
-		console.log(userMeaning, `Creating image: ${imagePromptSingleLine}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Creating image: ${imagePromptSingleLine}`);
 		return openAIManager.generateImage('default', {
 			model: 'dall-e-3',
 			prompt: imagePrompt,
@@ -232,8 +235,8 @@ async function generateImage(
 		});
 	});
 
-	console.log(userMeaning, 'Uploading image');
-	console.log(userMeaning, 'Revised prompt', image.data[0].revised_prompt);
+	console.log(`[${uniqueId}]`, userMeaning, 'Uploading image');
+	console.log(`[${uniqueId}]`, userMeaning, 'Revised prompt', image.data[0].revised_prompt);
 	const url = image.data[0].url!;
 
 	const updatedMetadata = {
@@ -245,12 +248,12 @@ async function generateImage(
 	const uploadedImage = await cfUploader.uploadImageFromUrl(url, updatedMetadata);
 
 	if (!uploadedImage.success) {
-		console.log(userMeaning, `Image upload failed: ${uploadedImage.errors}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Image upload failed: ${uploadedImage.errors}`);
 		return { success: false, message: 'Error' };
 	}
 
 	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
-	console.log(userMeaning, `Image uploaded: ${finalUrl}`);
+	console.log(`[${uniqueId}]`, userMeaning, `Image uploaded: ${finalUrl}`);
 
 	return {
 		success: true,
@@ -865,7 +868,7 @@ const analyzerPrompt = `Today is __DATE__.
 
 Dissect the given username into its component words, considering common memes, abbreviations, cultural references, and linguistic interpretations. Provide a brief and insightful interpretation in a single sentence, exploring both the literal meaning and any significant cultural or linguistic implications. This includes recognizing names, places, or phrases that might not translate directly into English but carry meaning in other languages.
 
-Write three sentences: The first describes the avatar's facial expression, the second describes its posture, and the third describes its outfit and appearance. Always choose an outfit that directly connects to the username, BIAS TOWARDS AN ORANGE HOODIE, unless another outfit more vividly reflects the username (IMPORTANT).
+Write four sentences: The first describes the avatar's facial expression, the second describes its posture, the third describes its outfit and appearance, and the fourth one describes the avatar's features and accessories. Always choose an outfit that directly connects to the username, BIAS TOWARDS AN ORANGE HOODIE, unless another outfit more vividly reflects the username (IMPORTANT).
 
 Transform the interpretation of the username into a scene that is delightfully odd and comically exaggerated. Each element of the scene should creatively reflect and enhance aspects of the username, ensuring that the humor and oddity arise directly from these interpretations. Craft a setting that surprises and entertains, while clearly maintaining a strong thematic link to the username. Describe a detailed background scene that not only resonates clearly with the username but also invokes laughter and amusement through its creative and unexpected twists, directly inspired by the username's unique elements. Use the key elements and themes identified in the username interpretation to determine a relevant setting for the scene.
 
@@ -874,27 +877,26 @@ Use this format:
 - Avatar's full facial expression:
 - Avatar's posture:
 - Avatar's outfit:
+- Avatar's features and accessories:
 - Scene description:`;
 
-const themePrompt = `Provided to you is the interpretation of a username, including details for a scene. Your task it to subtly infuse the provided details of the avatar and scene with today's theme: "__THEME_". The original scene details should be preserved, with the theme subtly integrated into the avatar's appearance and the scene's environment. Ensure that the original interpretation and the username remain unchanged.
+const themePrompt = `Provided to you is the interpretation of a username, including details for a scene. Your task it to subtly infuse the provided details of the avatar and scene with today's theme: "__THEME_". The original avatar must be preserved, with the theme integrated into the scene's environment. You must ensure that the original interpretation and the username remain unchanged.
 
 Use this format:
 - Avatar's full facial expression:
 - Avatar's posture:
 - Avatar's outfit:
+- Avatar's features and accessories:
 - Scene description:`;
 
-const scenarioPrompt = `Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the image style defined as __STYLE_NAME__, MUST remain unchanged. Your input MUST only replace the placeholders, injecting creativity and relevance based on the context provided.
+const scenarioPrompt = `I'll provide a template to you which is enclosed in triple quotes. Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the original wording, base prompt and the image style defined as __STYLE_NAME__, MUST remain unchanged. Your input MUST only replace the placeholders, injecting creativity and relevance based on the context provided.
 
-Template:
-__STYLE_TEMPLATE__
+Template: """__STYLE_TEMPLATE__"""
 
 Instructions:
 Use the provided information to fill in each placeholder. Ensure they resonate with the overall theme and style indicated.
 Make adjustments strictly within the brackets []. The template's wording MUST remain untouched.
-Your completion will directly inform a DALL-E3 image generation process. It's imperative that the filled-in details are safe for work, imaginative and precisely tailored to fit the placeholders, as there is no room for subsequent revisions or confirmations.
-
-Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use in DALL-E3 image generation, reflecting the specified style and theme. Do not ALTER text outside the brackets. Skip the preamble and provide only the processed text.`;
+Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use, reflecting the specified style and theme. DO NOT ALTER text outside the brackets. Skip the preamble and provide only the processed text.`;
 
 const dalleTemplates: DalleTemplate[] = [
 	{
