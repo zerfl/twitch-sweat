@@ -1,33 +1,21 @@
 import OpenAI from 'openai';
 
-type ClientKey = 'default' | 'fun';
-
-interface OpenAIManagerClients {
-	[key: string]: OpenAI;
-}
-
 export class OpenAIManager {
-	private readonly clients: OpenAIManagerClients;
+	private readonly client: OpenAI;
 
-	constructor() {
-		this.clients = {
-			default: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
-			fun: new OpenAI({ apiKey: process.env.OPENAI_API_KEY_FUN }),
-		};
+	constructor(apiKey: string) {
+		if (!apiKey) {
+			throw new Error('OpenAI API key is required.');
+		}
+		this.client = new OpenAI({ apiKey });
 	}
 
 	async getChatCompletion(
-		clientKey: ClientKey,
 		messages: OpenAI.ChatCompletionMessageParam[],
-		length: number = 256,
+		length: number = 400,
 		stop: string[] = [],
 	): Promise<string> {
-		const client = this.clients[clientKey];
-		if (!client) {
-			throw new Error(`Client with key '${clientKey}' does not exist.`);
-		}
-
-		const completion = await client.chat.completions.create({
+		const completion = await this.client.chat.completions.create({
 			messages: messages,
 			model: 'gpt-3.5-turbo',
 			temperature: 1,
@@ -42,15 +30,7 @@ export class OpenAIManager {
 		return completion.choices[0].message.content;
 	}
 
-	async generateImage(
-		clientKey: ClientKey,
-		params: OpenAI.Images.ImageGenerateParams,
-	): Promise<OpenAI.Images.ImagesResponse> {
-		const client = this.clients[clientKey];
-		if (!client) {
-			throw new Error(`Client with key '${clientKey}' does not exist.`);
-		}
-
-		return client.images.generate(params);
+	async generateImage(params: OpenAI.Images.ImageGenerateParams): Promise<OpenAI.Images.ImagesResponse> {
+		return this.client.images.generate(params);
 	}
 }
