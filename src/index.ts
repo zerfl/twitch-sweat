@@ -72,30 +72,6 @@ async function ensureFileExists(filePath: string, defaultContent: string = ''): 
 	}
 }
 
-/* eslint-disable */
-async function getImageData(broadcaster: string) {
-	let broadcasterImageData: BroadcasterImages;
-
-	try {
-		broadcasterImageData = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
-	} catch (error) {
-		console.error(`Error reading image file at ${imagesFilePath}`, error);
-		broadcasterImageData = {};
-	}
-
-	// bail out early if there's no data
-	if (!broadcasterImageData[broadcaster]) {
-		return 0;
-	}
-
-	let totalImages = 0;
-	for (const user in broadcasterImageData[broadcaster]) {
-		totalImages += broadcasterImageData[broadcaster][user].length;
-	}
-
-	return totalImages;
-}
-
 // TODO: This is seriously inefficient, we need to store the data in a database ASAP
 async function storeImageData(broadcaster: string, user: string, imageData: SingleImage) {
 	let broadcasterImageData: BroadcasterImages = {};
@@ -769,7 +745,7 @@ async function main() {
 						return say(params.join(' '));
 					});
 				}),
-				createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
+				createBotCommand('myai', async (_params, { userName, say }) => {
 					await messagesThrottle(() => {
 						return say(
 							`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/user/${userName} dnkLove`,
