@@ -948,6 +948,30 @@ const dalleTemplates: DalleTemplate[] = [
 		value:
 			"An illustrated scene scene featuring a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
 	},
+	// {
+	// 	name: 'ukiyo-e',
+	// 	keyword: 'ukiyoe',
+	// 	value:
+	// 		"A traditional Japanese ukiyo-e woodblock print depicting a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The intricate, hand-carved background of [avatar scene and environment] features a heart-shaped [object] and a '[literal username]' banner, all rendered in the distinctive style of Edo-period Japan.",
+	// },
+	// {
+	// 	name: 'stained glass',
+	// 	keyword: 'stainedglass',
+	// 	value:
+	// 		"A vibrant stained glass window depicting a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The intricate, lead-lined background of [avatar scene and environment] features a heart-shaped [object] and a '[literal username]' banner, all rendered in translucent, colorful glass segments.",
+	// },
+	{
+		name: 'minimalist pixel art',
+		keyword: 'minimalistpixel',
+		value:
+			"A minimalist pixel art scene featuring a simplified BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The clean, geometric background of [avatar scene and environment] includes a heart-shaped [object] and a '[literal username]' banner, all rendered using a limited color palette and minimalistic, abstract shapes.",
+	},
+	{
+		name: 'pixel art portrait',
+		keyword: 'pixelportrait',
+		value:
+			"A pixel art portrait focusing on a BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. The detailed, close-up background of [avatar scene and environment] includes a heart-shaped [object] and a '[literal username]' banner, all rendered in a high-resolution, realistic pixel art style.",
+	},
 ];
 
 /*
