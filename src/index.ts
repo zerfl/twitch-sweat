@@ -190,7 +190,7 @@ async function generateImage(
 				content: analysisResult,
 			},
 		];
-		return openAIManager.getChatCompletion(generatePromptMessages, 400, ['\n']);
+		return openAIManager.getChatCompletion(generatePromptMessages, 400);
 	});
 
 	console.log(`[${uniqueId}]`, userMeaning, `Generated sentence: ${sentenceResult}`);
@@ -831,18 +831,32 @@ type DalleTemplate = {
 
 const analyzerPrompt = `Today is __DATE__.
 
-Dissect the given username into its component words, considering common memes, abbreviations, cultural references, and linguistic interpretations. Provide a brief and insightful interpretation in a single sentence, exploring both the literal meaning and any significant cultural or linguistic implications. This includes recognizing names, places, or phrases that might not translate directly into English but carry meaning in other languages.
+Step 1: Interpret the username
+- Break down the username into its component words and phrases
+- Consider common memes, abbreviations, cultural references, and linguistic interpretations
+- Identify the key themes, emotions, or ideas conveyed by the username
+- Provide a brief, insightful and literal interpretation of the username in a single sentence
 
-Write four sentences: The first describes the avatar's facial expression, the second describes its posture, the third describes its outfit and appearance, and the fourth one describes the avatar's features and accessories. Always choose an outfit that directly connects to the username, BIAS TOWARDS AN ORANGE HOODIE, unless another outfit more vividly reflects the username (IMPORTANT).
+Step 2: Create the avatar
+- Describe the avatar's facial expression in one sentence
+- Describe the avatar's posture in one sentence
+- Choose an outfit that directly connects to the username's key themes or ideas, with a bias towards an orange hoodie unless another outfit more vividly reflects the username
+- Describe the avatar's outfit in one sentence
+- Add unique accessories or features that enhance the avatar's connection to the username
 
-Transform the interpretation of the username into a scene that is delightfully odd and comically exaggerated. Each element of the scene should creatively reflect and enhance aspects of the username, ensuring that the humor and oddity arise directly from these interpretations. Craft a setting that surprises and entertains, while clearly maintaining a strong thematic link to the username. Describe a detailed background scene that not only resonates clearly with the username but also invokes laughter and amusement through its creative and unexpected twists, directly inspired by the username's unique elements. Use the key elements and themes identified in the username interpretation to determine a relevant setting for the scene.
+Step 3: Generate the scene
+- Use the key themes, emotions, and ideas from the username interpretation to create a directly relevant setting
+- Incorporate the literal meaning of the username into the scene when applicable
+- Focus on the core elements of the username interpretation when generating the scene, avoiding unrelated or tangentially related elements
+- Ensure that the connection between the username and the scene is clear and obvious to the reader, without requiring excessive thought or interpretation
+- Describe the detailed background scene in 2-3 sentences, focusing on elements that directly reflect the username's meaning and invoke laughter and amusement
 
-Use this format:
-- Username's interpretation:
-- Avatar's full facial expression:
+Use this format for your response:
+- Username interpretation:
+- Avatar's facial expression:
 - Avatar's posture:
 - Avatar's outfit:
-- Avatar's features and accessories:
+- Avatar's accessories or features:
 - Scene description:`;
 
 const themePrompt = `Provided to you is the interpretation of a username, including details for a scene. Your task it to subtly infuse the provided details of the avatar and scene with today's theme: "__THEME_". The original avatar must be preserved, with the theme integrated into the scene's environment. You must ensure that the original interpretation and the username remain unchanged.
@@ -854,123 +868,111 @@ Use this format:
 - Avatar's features and accessories:
 - Scene description:`;
 
-const scenarioPrompt = `I'll provide a template to you which is enclosed in triple quotes. Populate the bracketed placeholders in the template below with creative details derived from the provided information. The rest of the template, including the original wording, base prompt and the image style defined as __STYLE_NAME__, MUST remain unchanged. Your input MUST only replace the placeholders, injecting creativity and relevance based on the context provided.
+const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on the most important elements and remove any redundant phrases. Describe how the elements contribute to the overall atmosphere or theme of the scene, and clearly convey the placement and role of specific objects in relation to the scene.
+
+Replace the placeholders strictly with the relevant information, without introducing any additional formatting or making changes to the template's structure. If a placeholder doesn't have a direct correspondence with the provided information, use your best judgment to fill it in while staying true to the overall theme and style.
+
+The rest of the template, including the original wording, base prompt, and the image style defined as __STYLE_NAME__, must remain unchanged.
 
 Template: """__STYLE_TEMPLATE__"""
 
 Instructions:
-Use the provided information to fill in each placeholder. Ensure they resonate with the overall theme and style indicated.
-Make adjustments strictly within the brackets []. The template's wording MUST remain untouched.
-Final Note: Ensure each placeholder is populated with a clear, direct response suitable for immediate use, reflecting the specified style and theme. DO NOT ALTER text outside the brackets. Skip the preamble and provide only the processed text.`;
+- Fill in each placeholder with clear, direct language that resonates with the overall theme and style indicated.
+- Only replace the text within the brackets []. Do not alter the template's wording or structure.
+- Provide a response suitable for immediate use, reflecting the specified style and theme.
+
+Please provide only the processed text, without any additional preamble or explanations.`;
 
 const dalleTemplates: DalleTemplate[] = [
 	{
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"An illustrated scene features a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. The background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner, styled with vibrant, clear outlines typical of illustrations.",
+			"Illustration of a cute blue character with an elongated spherical head, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. The scene is set in [avatar scene and environment], with a heart-shaped [object] and '[literal username]' banner adding to the vibrant, illustrated atmosphere.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"A watercolor scene depicts a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The soft, fluid background of [avatar scene and environment] includes a heart-shaped [object] and '[literal username]' banner.",
+			"Watercolor painting of a cute blue character with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The soft, fluid background depicts [avatar scene and environment], with a heart-shaped [object] and '[literal username]' banner enhancing the delicate watercolor style.",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"In a pixel art scene, a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The pixelated background features [avatar scene and environment] and a heart-shaped [object], including a '[literal username]' banner rendered with sharp pixel detail.",
+			"Pixel art scene featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The pixelated background showcases [avatar scene and environment], with a heart-shaped [object] and '[literal username]' banner rendered in sharp pixel detail.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"An oil-painted scene with a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The rich, textured background of [avatar scene and environment] includes a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
+			"Oil painting of a cute blue character with an elongated spherical head, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The rich, textured background depicts [avatar scene and environment], with a heart-shaped [object] and an artistically integrated '[literal username]' banner.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"A flat design illustration features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. The simplistic background with bold colors and [avatar scene and environment] includes a heart-shaped [object] and a boldly styled '[literal username]' banner.",
+			"Flat design illustration of a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. The simplistic background features bold colors and [avatar scene and environment], with a heart-shaped [object] and a boldly styled '[literal username]' banner.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"In a glitch art illustrated scene, a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit] displays [avatar expression] in [avatar posture] against a backdrop of [avatar scene and environment] with vibrant glitches. A heart-shaped [object] and '[literal username]' banner are intermingled with digital distortions.",
+			"Glitch art illustration featuring a cute blue character with an elongated spherical head, in [avatar outfit], displaying [avatar expression] in [avatar posture]. The backdrop showcases [avatar scene and environment] with vibrant glitches, intermingling a heart-shaped [object] and '[literal username]' banner with digital distortions.",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"A Byzantine-inspired illustrated scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions],  with [avatar expression] in [avatar posture]. The golden and vibrant background of [avatar scene and environment] includes a heart-shaped [object] and an ornate '[literal username]' banner.",
+			"Byzantine-inspired illustration of a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The golden and vibrant background depicts [avatar scene and environment], with a heart-shaped [object] and an ornate '[literal username]' banner.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"An Expressionist drawing depicts a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. The background of [avatar scene and environment] includes a heart-shaped [object] and an expressive '[literal username]' banner.",
+			"Expressionist drawing of a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. The background features [avatar scene and environment], with a heart-shaped [object] and an expressive '[literal username]' banner.",
 	},
-	// {
-	// 	name: 'papercut',
-	// 	keyword: 'papercut',
-	// 	value:
-	// 		"A papercut style scene with a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], exhibiting [avatar expression] in [avatar posture]. The layered paper background of [avatar scene and environment] includes a heart-shaped [object] and a multi-layered '[literal username]' banner.",
-	// },
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			"In a charcoal drawing, a cute BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit] shows deep [avatar expression] in [avatar posture] against a raw textured background of [avatar scene and environment]. A heart-shaped [object] and a bold '[literal username]' banner are sketched with bold strokes.",
+			'Charcoal drawing of a cute blue character with an elongated spherical head, dressed in [avatar outfit], showing deep [avatar expression] in [avatar posture]. The raw textured background depicts [avatar scene and environment], with a heart-shaped [object] and a bold "[literal username]" banner sketched in bold strokes.',
 	},
 	{
 		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			"A neon graffiti scene features a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture] against an urban backdrop of [avatar scene and environment]. A heart-shaped [object] and a luminous '[literal username]' banner shine with neon vibrancy.",
+			'Neon graffiti scene featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The urban backdrop showcases [avatar scene and environment], with a heart-shaped [object] and a luminous "[literal username]" banner shining with neon vibrancy.',
 	},
 	{
 		name: 'vintage manga',
 		keyword: 'vintagemanga',
 		value:
-			"Still frame from a A 1980s vintage manga depicting a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The backdrop of [avatar scene and environment] includes cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner are styled in VHS quality.",
+			'1980s vintage manga still frame depicting a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The backdrop features [avatar scene and environment] with cell shading, capturing a grainy and vintage look with overlapping visual channels. A heart-shaped [object] and a "[literal username]" banner are styled in VHS quality.',
 	},
 	{
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			"An illustrated scene featuring a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background of [avatar scene and environment] includes cell shading and vintage anime elements with overlapping visual channels. A heart-shaped [object] and a '[literal username]' banner add to the thematic depth.",
+			'Illustration in the style of Rumiko Takahashi, featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background depicts [avatar scene and environment] with cell shading and vintage anime elements, including a heart-shaped [object] and a "[literal username]" banner adding thematic depth.',
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			"An illustrated scene scene featuring a cute BLUE character, with blue skin, with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background of [avatar scene and environment] showcases cell shading, grainy textures, and vintage aesthetics with overlapping visual channels. A heart-shaped [object] and an '[literal username]' banner enhance the mysterious ambiance.",
+			'Illustration in the style of Yoshiyuki Sadamoto, featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A heart-shaped [object] and a "[literal username]" banner enhance the mysterious ambiance.',
 	},
-	// {
-	// 	name: 'ukiyo-e',
-	// 	keyword: 'ukiyoe',
-	// 	value:
-	// 		"A traditional Japanese ukiyo-e woodblock print depicting a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The intricate, hand-carved background of [avatar scene and environment] features a heart-shaped [object] and a '[literal username]' banner, all rendered in the distinctive style of Edo-period Japan.",
-	// },
-	// {
-	// 	name: 'stained glass',
-	// 	keyword: 'stainedglass',
-	// 	value:
-	// 		"A vibrant stained glass window depicting a cute BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The intricate, lead-lined background of [avatar scene and environment] features a heart-shaped [object] and a '[literal username]' banner, all rendered in translucent, colorful glass segments.",
-	// },
 	{
 		name: 'minimalist pixel art',
 		keyword: 'minimalistpixel',
 		value:
-			"A minimalist pixel art scene featuring a simplified BLUE character, with blue skin, with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The clean, geometric background of [avatar scene and environment] includes a heart-shaped [object] and a '[literal username]' banner, all rendered using a limited color palette and minimalistic, abstract shapes.",
+			'Minimalist pixel art scene featuring a simplified blue character with an elongated spherical head, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The clean, geometric background depicts [avatar scene and environment], with a heart-shaped [object] and a "[literal username]" banner rendered using a limited color palette and minimalistic, abstract shapes.',
 	},
 	{
 		name: 'pixel art portrait',
 		keyword: 'pixelportrait',
 		value:
-			"A pixel art portrait focusing on a BLUE character, with blue skin, with an elongated spherical head, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. The detailed, close-up background of [avatar scene and environment] includes a heart-shaped [object] and a '[literal username]' banner, all rendered in a high-resolution, realistic pixel art style.",
+			'Pixel art portrait focusing on a blue character with an elongated spherical head, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. The detailed, close-up background showcases [avatar scene and environment], with a heart-shaped [object] and a "[literal username]" banner rendered in a high-resolution, realistic pixel art style.',
 	},
 ];
 
