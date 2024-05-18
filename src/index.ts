@@ -745,6 +745,13 @@ async function main() {
 						return say(params.join(' '));
 					});
 				}),
+				createBotCommand('uguu', async (_params, { say, userName }) => {
+					if (userName.toLowerCase() !== 'partyhorst') return;
+
+					await messagesThrottle(() => {
+						return say(`!uguu`);
+					});
+				}),
 				createBotCommand('myai', async (_params, { userName, say }) => {
 					await messagesThrottle(() => {
 						return say(
@@ -755,6 +762,9 @@ async function main() {
 			],
 		});
 
+		twitchBot.onDisconnect((manually, reason) => {
+			console.log(`[ERROR] Disconnected from Twitch: ${manually} ${reason}`);
+		});
 		twitchBot.onConnect(() => {
 			console.log(`Connected to ${twitchChannels.join(', ')}!`);
 		});
@@ -960,7 +970,7 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			'Illustration in the style of Yoshiyuki Sadamoto, featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A heart-shaped [object] and a "[literal username]" banner enhance the mysterious ambiance.',
+			'Dystopian illustration in the style of Sadamoto, featuring a cute blue character with an elongated spherical head, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A heart-shaped [object] and a "[literal username]" banner enhance the mysterious ambiance.',
 	},
 	{
 		name: 'minimalist pixel art',
@@ -990,8 +1000,9 @@ try {
 	const originalLog = console.log;
 	console.log = (...args: unknown[]) => {
 		const now = new Date().toISOString();
-		fs.appendFile(logFilePath, `[${now}] ${args.join(' ')}\n`);
-		originalLog(`[${now}]`, ...args);
+		fs.appendFile(logFilePath, `[${now}] ${args.join(' ')}\n`).then(() => {
+			originalLog(`[${now}]`, ...args);
+		});
 	};
 
 	await Promise.all([
