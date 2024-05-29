@@ -3,11 +3,20 @@ import OpenAI from 'openai';
 export class OpenAIManager {
 	private readonly client: OpenAI;
 
-	constructor(apiKey: string) {
+	constructor(apiKey: string, gateway?: string) {
 		if (!apiKey) {
 			throw new Error('OpenAI API key is required.');
 		}
-		this.client = new OpenAI({ apiKey });
+
+		const options: { apiKey: string; baseURL?: string } = {
+			apiKey: apiKey,
+		};
+
+		if (gateway) {
+			options.baseURL = gateway;
+		}
+
+		this.client = new OpenAI(options);
 	}
 
 	async getChatCompletion(

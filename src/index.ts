@@ -557,7 +557,6 @@ async function main() {
 
 		const twitchBot = new Bot({
 			authProvider,
-			debug: true,
 			channels: twitchChannels,
 			commands: [
 				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
@@ -825,7 +824,7 @@ const themeFilePath = path.join(appRootDir, 'data', 'themes.json');
 const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
-const openAIManager = new OpenAIManager(process.env.OPENAI_API_KEY!);
+const openAIManager = new OpenAIManager(process.env.OPENAI_API_KEY!, process.env.CLOUDFLARE_AI_GATEWAY);
 const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
@@ -862,8 +861,8 @@ Step 2: Create the avatar
 
 Step 3: Generate the scene
 - Use the key themes, emotions, and ideas from the username interpretation to create a directly relevant setting
-- Incorporate the literal meaning of the username into the scene when applicable
-- Focus on the core elements of the username interpretation when generating the scene, avoiding unrelated or tangentially related elements
+- Incorporate the literal meaning of the username into the scene
+- Focus on the core elements of the username interpretation when generating the scene, avoiding unrelated elements
 - Ensure that the connection between the username and the scene is clear and obvious to the reader, without requiring excessive thought or interpretation
 - Describe the detailed background scene in 2-3 sentences, focusing on elements that directly reflect the username's meaning and invoke laughter and amusement
 
@@ -884,7 +883,7 @@ Use this format:
 - Avatar's accessories or features:
 - Scene description:`;
 
-const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on the most important elements and remove any redundant phrases. Use precise language and keep it short. Clearly convey the placement and role of specific objects in relation to the scene.
+const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
 Replace the placeholders strictly with the relevant information, without introducing any additional formatting or making changes to the template's structure. If a placeholder doesn't have a direct correspondence with the provided information, use your best judgment to fill it in while staying true to the overall theme and style.
 
@@ -894,10 +893,9 @@ Template: """__STYLE_TEMPLATE__"""
 
 Instructions:
 - Fill in each placeholder with clear, direct language that resonates with the overall theme and style indicated.
-- Avoid quoting the placeholders or altering the template's structure.
 - Only replace the text within the brackets []. Do not alter the template's wording or structure.
 - Provide a response suitable for immediate use, reflecting the specified style and theme.
-- You MUST use quotes around the literal username only.
+- Quotes may be placed around the literal username only.
 
 Please provide only the processed text, without any additional preamble or explanations.`;
 
