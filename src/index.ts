@@ -20,6 +20,7 @@ const requiredEnvVars = [
 	'TWITCH_REFRESH_TOKEN',
 	'OPENAI_API_KEY',
 	'OPENAI_IMAGES_PER_MINUTE',
+	'OPENAI_MODEL',
 	'DISCORD_BOT_TOKEN',
 	'DISCORD_CHANNELS',
 	'DISCORD_ADMIN_USER_ID',
@@ -27,6 +28,7 @@ const requiredEnvVars = [
 	'CLOUDFLARE_ACCOUNT_ID',
 	'CLOUDFLARE_API_TOKEN',
 	'CLOUDFLARE_IMAGES_URL',
+	'CLOUDFLARE_AI_GATEWAY',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -128,7 +130,7 @@ async function generateImage(
 
 	let analysisResult = await openaiThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${username} / ${userMeaning}`);
-		return openAIManager.getChatCompletion(analysisMessages, 400);
+		return openAIManager.getChatCompletion(analysisMessages, 600);
 	});
 
 	/*
@@ -157,7 +159,7 @@ async function generateImage(
 		];
 		analysisResult = await openaiThrottle(() => {
 			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme} / ${analysisResult}`);
-			return openAIManager.getChatCompletion(themeMessages, 400);
+			return openAIManager.getChatCompletion(themeMessages, 600);
 		});
 	}
 
@@ -824,7 +826,11 @@ const themeFilePath = path.join(appRootDir, 'data', 'themes.json');
 const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
-const openAIManager = new OpenAIManager(process.env.OPENAI_API_KEY!, process.env.CLOUDFLARE_AI_GATEWAY);
+const openAIManager = new OpenAIManager(
+	process.env.OPENAI_API_KEY!,
+	process.env.OPENAI_MODEL!,
+	process.env.CLOUDFLARE_AI_GATEWAY,
+);
 const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
@@ -845,43 +851,36 @@ type DalleTemplate = {
 
 const analyzerPrompt = `Today is __DATE__.
 
-Step 1: Interpret the username
-- Break down the username into its component words and phrases
-- Consider common memes, abbreviations, cultural references, and linguistic interpretations
-- Identify the key themes, emotions, or ideas conveyed by the username
-- Provide a brief, insightful and literal interpretation of the username in a single sentence
-- Avoid quote marks or unnecessary punctuation
+You are an expert in interpreting usernames and creating avatar descriptions. I will provide you with a username, and I'd like you to answer the following questions:
+   
+1. What is the literal interpretation of this username?
+2. What themes or ideas does this username convey?
+3. How would you describe an avatar that represents this username?
+3.1. What facial expression would best suit this avatar?
+3.2. What posture or stance would best reflect the username's themes or ideas?
+3.3. What physique or physical features would be most appropriate for this avatar?
+3.4. What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
+3.5. What unique accessories or features would enhance the avatar's connection to the username?
+4. What kind of scene or background would best complement this avatar?
 
-Step 2: Create the avatar
-- Describe the avatar's facial expression in one sentence, including the eyes, mouth, and overall mood
-- Describe the avatar's posture in one sentence
-- Choose an outfit that directly connects to the username's key themes or ideas, with a bias towards an orange hoodie unless another outfit more vividly reflects the username
-- Describe the avatar's outfit in one sentence
-- Add unique accessories or features that enhance the avatar's connection to the username
+Please be creative and detailed in your responses.`;
 
-Step 3: Generate the scene
-- Use the key themes, emotions, and ideas from the username interpretation to create a directly relevant setting
-- Incorporate the literal meaning of the username into the scene
-- Focus on the core elements of the username interpretation when generating the scene, avoiding unrelated elements
-- Ensure that the connection between the username and the scene is clear and obvious to the reader, without requiring excessive thought or interpretation
-- Describe the detailed background scene in 2-3 sentences, focusing on elements that directly reflect the username's meaning and invoke laughter and amusement
+const themePrompt = `You are an expert in adapting avatar descriptions and scenes to specific themes. You will be provided with an interpretation of a username and a detailed avatar description. Your task is to subtly infuse these details with a given theme, primarily by adjusting the scene and environment.
 
-Use this format for your response:
-- Username interpretation:
-- Avatar's expression:
-- Avatar's posture:
-- Avatar's outfit:
-- Avatar's accessories or features:
-- Scene description:`;
+Today's theme:
+"""
+__THEME_
+"""
 
-const themePrompt = `Provided to you is the interpretation of a username, including details for a scene. Your task it to subtly infuse the provided details of the avatar and scene with today's theme: "__THEME_". The original avatar's interpretation must be preserved, with the theme integrated into the scene's environment. You must ensure that the original interpretation and the username remain unchanged.
+Guidelines:
+1. Preserve the original interpretation of the username.
+2. Maintain the core aspects of the avatar's description.
+3. Primarily focus on adapting the scene and background to incorporate the theme.
+4. If the theme strongly relates to the avatar itself, you may suggest subtle changes to the avatar's accessories or features, but keep the main characteristics intact.
+5. If the theme contradicts the original interpretation, prioritize adjusting the scene to accommodate the theme.
+6. Provide a direct, structured response that can be easily processed.
 
-Use this format:
-- Avatar's expression:
-- Avatar's posture:
-- Avatar's outfit:
-- Avatar's accessories or features:
-- Scene description:`;
+Please be creative and detailed in your responses.`;
 
 const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
@@ -896,6 +895,7 @@ Instructions:
 - Only replace the text within the brackets []. Do not alter the template's wording or structure.
 - Provide a response suitable for immediate use, reflecting the specified style and theme.
 - Quotes may be placed around the literal username only.
+- Make sure the final text is concise and fits within 150 words.
 
 Please provide only the processed text, without any additional preamble or explanations.`;
 
@@ -904,103 +904,103 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"Illustration of a cute BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. The scene is set in [avatar scene and environment], with a '[literal_username]' banner adding to the vibrant, illustrated atmosphere.",
+			"Illustration of a toon BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. [avatar physique]. The scene is set in [avatar scene and environment], with a '[literal_username]' banner adding to the vibrant, illustrated atmosphere.",
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"Watercolor painting of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The soft, fluid background depicts [avatar scene and environment], with a '[literal_username]' banner enhancing the delicate watercolor style.",
+			"Watercolor painting of a toon BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The soft, fluid background depicts [avatar scene and environment], with a '[literal_username]' banner enhancing the delicate watercolor style.",
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"Pixel art scene featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The pixelated background showcases [avatar scene and environment], with a '[literal_username]' banner rendered in sharp pixel detail.",
+			"Pixel art scene featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The pixelated background showcases [avatar scene and environment], with a '[literal_username]' banner rendered in sharp pixel detail.",
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"Oil painting of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The rich, textured background depicts [avatar scene and environment], with a an artistically integrated '[literal_username]' banner.",
+			"Oil painting of a toon BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. [avatar physique]. The rich, textured background depicts [avatar scene and environment], with a an artistically integrated '[literal_username]' banner.",
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"Flat design illustration of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. The simplistic background features bold colors and [avatar scene and environment], with a a boldly styled '[literal_username]' banner.",
+			"Flat design illustration of a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. [avatar physique]. The simplistic background features bold colors and [avatar scene and environment], with a a boldly styled '[literal_username]' banner.",
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"Glitch art illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], displaying [avatar expression] in [avatar posture]. The backdrop showcases [avatar scene and environment] with vibrant glitches, intermingling a '[literal_username]' banner with digital distortions.",
+			"Glitch art illustration featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], displaying [avatar expression] in [avatar posture]. [avatar physique]. The backdrop showcases [avatar scene and environment] with vibrant glitches, intermingling a '[literal_username]' banner with digital distortions.",
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"Byzantine-inspired illustration of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The golden and vibrant background depicts [avatar scene and environment], with a an ornate '[literal_username]' banner.",
+			"Byzantine-inspired illustration of a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The golden and vibrant background depicts [avatar scene and environment], with a an ornate '[literal_username]' banner.",
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"Expressionist drawing of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. The background features [avatar scene and environment], with a an expressive '[literal_username]' banner.",
+			"Expressionist drawing of a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. [avatar physique]. The background features [avatar scene and environment], with a an expressive '[literal_username]' banner.",
 	},
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			'Charcoal drawing of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], showing deep [avatar expression] in [avatar posture]. The raw textured background depicts [avatar scene and environment], with a a bold "[literal_username]" banner sketched in bold strokes.',
+			'Charcoal drawing of a toon BLUE round-faced character, with blue skin, dressed in [avatar outfit], showing deep [avatar expression] in [avatar posture]. [avatar physique]. The raw textured background depicts [avatar scene and environment], with a a bold "[literal_username]" banner sketched in bold strokes.',
 	},
 	{
 		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			'Illustration of a neon graffiti scene featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The urban backdrop showcases [avatar scene and environment], with a a luminous "[literal_username]" banner shining with neon vibrancy.',
+			'Illustration of a neon graffiti scene featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The urban backdrop showcases [avatar scene and environment], with a a luminous "[literal_username]" banner shining with neon vibrancy.',
 	},
 	{
 		name: 'vintage manga',
 		keyword: 'vintagemanga',
 		value:
-			'1980s vintage manga still frame depicting a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. The backdrop features [avatar scene and environment] with cell shading, capturing a grainy and vintage look with overlapping visual channels. A a "[literal_username]" banner are styled in VHS quality.',
+			'1980s vintage manga still frame depicting a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. [avatar physique]. The backdrop features [avatar scene and environment] with cell shading, capturing a grainy and vintage look with overlapping visual channels. A a "[literal_username]" banner are styled in VHS quality.',
 	},
 	{
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			'Illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The grainy, surreal background depicts [avatar scene and environment] with cell shading and vintage anime elements, including a a "[literal_username]" banner adding thematic depth. Visual style reminiscent of exaggeration, bold lines, and vivid colors, similar to those seen in common late 19th century illustrations mainly created using ink on paper.',
+			'Illustration featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The grainy, surreal background depicts [avatar scene and environment] with cell shading and vintage anime elements, including a a "[literal_username]" banner adding thematic depth. Visual style reminiscent of exaggeration, bold lines, and vivid colors, similar to those seen in common late 19th century illustrations mainly created using ink on paper.',
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			'Dystopian illustration in the style of Sadamoto, featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A a "[literal_username]" banner enhance the mysterious ambiance.',
+			'Dystopian illustration in the style of Sadamoto, featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A a "[literal_username]" banner enhance the mysterious ambiance.',
 	},
 	{
 		name: 'minimalist pixel art',
 		keyword: 'minimalistpixel',
 		value:
-			'Minimalist pixel art scene featuring a simplified BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The clean, geometric background depicts [avatar scene and environment], with a a "[literal_username]" banner rendered using a limited color palette and minimalistic, abstract shapes.',
+			'Minimalist pixel art scene featuring a simplified toon BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The clean, geometric background depicts [avatar scene and environment], with a a "[literal_username]" banner rendered using a limited color palette and minimalistic, abstract shapes.',
 	},
 	{
 		name: 'pixel art portrait',
 		keyword: 'pixelportrait',
 		value:
-			'Pixel art portrait focusing on a BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. The detailed, close-up background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in a high-resolution, realistic pixel art style.',
+			'Pixel art portrait focusing on a toon BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. [avatar physique]. The detailed, close-up background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in a high-resolution, realistic pixel art style.',
 	},
 	{
 		name: 'sketch art',
 		keyword: 'sketch',
 		value:
-			'Detailed sketch art illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The sketchy background depicts [avatar scene and environment], with a a "[literal_username]" banner sketched in loose, expressive lines.',
+			'Detailed sketch art illustration featuring a toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The sketchy background depicts [avatar scene and environment], with a a "[literal_username]" banner sketched in loose, expressive lines.',
 	},
 	{
 		name: 'fauvism art',
 		keyword: 'fauvism',
 		value:
-			'Fauvism-inspired painting of a vibrant BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. The bold, colorful background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in vivid, expressive brushstrokes.',
+			'Fauvism-inspired painting of a vibrant toon BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The bold, colorful background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in vivid, expressive brushstrokes.',
 	},
 ];
 
@@ -1040,6 +1040,7 @@ try {
 	console.log(`Using meanings file: ${meaningsFilePath}`);
 	console.log(`Using themes file: ${themeFilePath}`);
 	console.log(`Using ignore file: ${ignoreFilePath}`);
+	console.log(`Using OpenAI model: ${process.env.OPENAI_MODEL}`);
 
 	await main();
 } catch (error: unknown) {

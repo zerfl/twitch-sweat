@@ -2,12 +2,9 @@ import OpenAI from 'openai';
 
 export class OpenAIManager {
 	private readonly client: OpenAI;
+	private readonly model: string = 'gpt-3.5-turbo';
 
-	constructor(apiKey: string, gateway?: string) {
-		if (!apiKey) {
-			throw new Error('OpenAI API key is required.');
-		}
-
+	constructor(apiKey: string, model: string, gateway?: string) {
 		const options: { apiKey: string; baseURL?: string } = {
 			apiKey: apiKey,
 		};
@@ -16,6 +13,7 @@ export class OpenAIManager {
 			options.baseURL = gateway;
 		}
 
+		this.model = model;
 		this.client = new OpenAI(options);
 	}
 
@@ -26,7 +24,7 @@ export class OpenAIManager {
 	): Promise<string> {
 		const completion = await this.client.chat.completions.create({
 			messages: messages,
-			model: 'gpt-3.5-turbo',
+			model: this.model,
 			temperature: 1,
 			max_tokens: length,
 			stop: stop.length ? stop : null,
