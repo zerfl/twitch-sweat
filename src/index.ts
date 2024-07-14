@@ -158,9 +158,11 @@ async function generateImage(
 			},
 		];
 		analysisResult = await openaiThrottle(() => {
-			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme} / ${analysisResult}`);
+			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
 			return openAIManager.getChatCompletion(themeMessages, 600);
 		});
+
+		console.log(`[${uniqueId}]`, userMeaning, `New analysis: ${analysisResult}`);
 	}
 
 	analysisResult = `- Literal username: ${username}\n${analysisResult}`;
