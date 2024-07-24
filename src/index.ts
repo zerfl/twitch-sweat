@@ -855,21 +855,27 @@ const analyzerPrompt = `Today is __DATE__.
 
 You are an expert in interpreting usernames and creating avatar descriptions. I will provide you with a username, and I'd like you to answer the following questions:
    
-1. What is the literal interpretation of this username?
-2. What themes or ideas does this username convey?
-3. How would you describe an avatar that represents this username?
-3.1. What facial expression would best suit this avatar?
-3.2. What posture or stance would best reflect the username's themes or ideas?
-3.3. What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
-3.4. What unique accessories or features would enhance the avatar's connection to the username?
-4. What kind of scene or background would best complement this avatar?
+1. Interpretation: What is the literal interpretation of this username?
+2. Themes / Ideas: What themes or ideas does this username convey?
+3. Description: How would you describe an avatar that represents this username?
+3.1. Facial expression: What facial expression would best suit this avatar?
+3.2. Posture: What posture or stance would best reflect the username's themes or ideas?
+3.3. Outfit: What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
+3.4. Accessories / Features: What unique accessories or features would enhance the avatar's connection to the username?
+4. Scene / Background: What kind of scene or background would best complement this avatar?
+5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username must be in quotes and the text must be legible and visually appealing.
+
+Guidelines:
+- create an engaging and immersive scene that resonates with the username's themes or ideas.
+- create a plot or narrative that could involve this avatar.
+- imagine what the avatar might be doing or experiencing in the scene.
+- be brave, creative, provocative, literal, humorous and original in your interpretations. 
 
 Things to avoid:
 - mentioning ears, tails, or other animalistic features unless directly relevant to the username.
 - mentioning hair or other physical attributes that are not explicitly part of the username's interpretation.
 
-
-Please be creative and detailed in your responses.`;
+Start with the answers to the questions right away and skip the preamble. Answer in plaintext and avoid any additional formatting.`;
 
 const themePrompt = `You are an expert in adapting avatar descriptions and scenes to specific themes. You will be provided with an interpretation of a username and a detailed avatar description. Your task is to subtly infuse these details with a given theme, primarily by adjusting the scene and environment.
 
@@ -910,103 +916,103 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'illustration',
 		keyword: 'illustration',
 		value:
-			"Illustration of a cute BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], and showing [avatar expression] in [avatar posture]. [avatar physique]. The scene is set in [avatar scene and environment], with a '[literal_username]' banner adding to the vibrant, illustrated atmosphere.",
+			'Illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The scene is set in [avatar scene and environment].',
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
 		value:
-			"Watercolor painting of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The soft, fluid background depicts [avatar scene and environment], with a '[literal_username]' banner enhancing the delicate watercolor style.",
+			'Watercolor painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The soft, fluid background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
 		value:
-			"Pixel art scene featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The pixelated background showcases [avatar scene and environment], with a '[literal_username]' banner rendered in sharp pixel detail.",
+			'16 bit blocky and crisp pixel art featuring a cute BLUE round-faced character, with blue skin. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique] The [avatar scene and environment]. [banner]',
 	},
 	{
 		name: 'oil painting',
 		keyword: 'oil',
 		value:
-			"Oil painting of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. [avatar physique]. The rich, textured background depicts [avatar scene and environment], with a an artistically integrated '[literal_username]' banner.",
+			'Oil painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The rich and textured background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'flat',
 		keyword: 'flat',
 		value:
-			"Flat design illustration of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], portraying [avatar expression] in [avatar posture]. [avatar physique]. The simplistic background features bold colors and [avatar scene and environment], with a a boldly styled '[literal_username]' banner.",
+			'Flat design illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The simplistic background features bold colors and [avatar scene and environment].',
 	},
 	{
 		name: 'glitch art',
 		keyword: 'glitch',
 		value:
-			"Glitch art illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], displaying [avatar expression] in [avatar posture]. [avatar physique]. The backdrop showcases [avatar scene and environment] with vibrant glitches, intermingling a '[literal_username]' banner with digital distortions.",
+			'Glitch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment] with vibrant glitches.',
 	},
 	{
 		name: 'Byzantine art',
 		keyword: 'byzantine',
 		value:
-			"Byzantine-inspired illustration of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The golden and vibrant background depicts [avatar scene and environment], with a an ornate '[literal_username]' banner.",
+			'Byzantine-inspired illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The golden, vibrant background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'expressionism',
 		keyword: 'expressionism',
 		value:
-			"Expressionist drawing of a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing exaggerated [avatar expression] in [avatar posture]. [avatar physique]. The background features [avatar scene and environment], with a an expressive '[literal_username]' banner.",
+			'Expressionist drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The background features [avatar scene and environment].',
 	},
 	{
 		name: 'charcoal',
 		keyword: 'charcoal',
 		value:
-			'Charcoal drawing of a cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], showing deep [avatar expression] in [avatar posture]. [avatar physique]. The raw textured background depicts [avatar scene and environment], with a a bold "[literal_username]" banner sketched in bold strokes.',
+			'Charcoal drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'neon graffiti',
 		keyword: 'neon',
 		value:
-			'Illustration of a neon graffiti scene featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The urban backdrop showcases [avatar scene and environment], with a a luminous "[literal_username]" banner shining with neon vibrancy.',
+			'Illustration of a neon graffiti scene featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment].',
 	},
 	{
 		name: 'vintage manga',
 		keyword: 'vintagemanga',
 		value:
-			'1980s vintage manga still frame depicting a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], showing [avatar expression] in [avatar posture]. [avatar physique]. The backdrop features [avatar scene and environment] with cell shading, capturing a grainy and vintage look with overlapping visual channels. A a "[literal_username]" banner are styled in VHS quality.',
+			'1980s vintage manga still frame depicting a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The backdrop features [avatar scene and environment] with cell shading, capturing a grainy and vintage look with overlapping visual channels.',
 	},
 	{
 		name: 'Rumiko Takahashi style',
 		keyword: 'takahashi',
 		value:
-			'Illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The grainy, surreal background depicts [avatar scene and environment] with cell shading and vintage anime elements, including a a "[literal_username]" banner adding thematic depth. Visual style reminiscent of exaggeration, bold lines, and vivid colors, similar to those seen in common late 19th century illustrations mainly created using ink on paper.',
+			'Illustration reminiscent of exaggeration, bold lines, and vivid colors featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The grainy, surreal background depicts [avatar scene and environment] with vintage anime elements.',
 	},
 	{
 		name: 'Yoshiyuki Sadamoto style',
 		keyword: 'sadamoto',
 		value:
-			'Dystopian illustration in the style of Sadamoto, featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The dystopian and surreal background showcases [avatar scene and environment] with cell shading, grainy textures, and vintage aesthetics. A a "[literal_username]" banner enhance the mysterious ambiance.',
+			'Dystopian and mysterious illustration in the style of Sadamoto, featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The dystopian and surreal background showcases [avatar scene and environment] with grainy textures and vintage aesthetics.',
 	},
 	{
 		name: 'minimalist pixel art',
 		keyword: 'minimalistpixel',
 		value:
-			'Minimalist pixel art scene featuring a simplified cute BLUE round-faced character, with blue skin, dressed in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The clean, geometric background depicts [avatar scene and environment], with a a "[literal_username]" banner rendered using a limited color palette and minimalistic, abstract shapes.',
+			'Minimalist pixel art scene featuring a simplified cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture]. [avatar physique]. The clean, geometric background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'pixel art portrait',
 		keyword: 'pixelportrait',
 		value:
-			'Pixel art portrait focusing on a cute BLUE round-faced character, with blue skin, wearing [avatar outfit], [avatar actions], displaying [avatar expression] in [avatar posture]. [avatar physique]. The detailed, close-up background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in a high-resolution, realistic pixel art style.',
+			'Pixel art portrait focusing on a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The detailed, close-up background showcases [avatar scene and environment].',
 	},
 	{
 		name: 'sketch art',
 		keyword: 'sketch',
 		value:
-			'Detailed sketch art illustration featuring a cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The sketchy background depicts [avatar scene and environment], with a a "[literal_username]" banner sketched in loose, expressive lines.',
+			'Detailed sketch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The sketchy background depicts [avatar scene and environment].',
 	},
 	{
 		name: 'fauvism art',
 		keyword: 'fauvism',
 		value:
-			'Fauvism-inspired painting of a vibrant cute BLUE round-faced character, with blue skin, in [avatar outfit], [avatar actions], with [avatar expression] in [avatar posture]. [avatar physique]. The bold, colorful background showcases [avatar scene and environment], with a a "[literal_username]" banner rendered in vivid, expressive brushstrokes.',
+			'Fauvism-inspired painting of a vibrant cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar expression][avatar posture][avatar physique]. The bold, colorful background showcases [avatar scene and environment].',
 	},
 ];
 
