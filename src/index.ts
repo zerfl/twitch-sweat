@@ -66,6 +66,13 @@ type BroadcasterImages = {
 type UserMeaningMap = Map<string, string>;
 type BroadcasterThemeMap = Map<string, string>;
 
+const isAdminOrBroadcaster = (userName: string, broadcasterName: string): boolean => {
+	const lowerUserName = userName.toLowerCase();
+	const lowerBroadcasterName = broadcasterName.toLowerCase();
+	const adminList = [...Array.from(twitchAdmins), lowerBroadcasterName];
+	return adminList.includes(lowerUserName);
+};
+
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
 	try {
 		await fs.access(filePath);
@@ -561,10 +568,13 @@ async function main() {
 
 		const twitchBot = new Bot({
 			authProvider,
-			channels: twitchChannels,
+			channels: Array.from(twitchChannels),
 			commands: [
 				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-					if (!['partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
+
 					if (params.length === 0) return;
 
 					const target = params[0].replace('@', '');
@@ -635,7 +645,10 @@ async function main() {
 					});
 				}),
 				createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
-					if (userName.toLowerCase() !== broadcasterName.toLowerCase()) return;
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
+
 					if (params.length === 0) {
 						await messagesThrottle(() => {
 							return say(`@${userName} Please provide a theme.`);
@@ -652,7 +665,9 @@ async function main() {
 					});
 				}),
 				createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
-					if (userName.toLowerCase() !== broadcasterName.toLowerCase()) return;
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
 
 					await removeTheme(broadcasterName.toLowerCase());
 					await saveThemes(themeFilePath);
@@ -672,7 +687,10 @@ async function main() {
 					});
 				}),
 				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!['myndzi', 'partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
+
 					if (params.length < 2) {
 						await messagesThrottle(() => {
 							return say(`@${userName} Please provide a username and a meaning.`);
@@ -690,7 +708,9 @@ async function main() {
 					});
 				}),
 				createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!['myndzi', 'partyhorst', broadcasterName.toLowerCase()].includes(userName.toLowerCase())) return;
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
 
 					if (params.length !== 1) {
 						await messagesThrottle(() => {
@@ -760,10 +780,10 @@ async function main() {
 						return say(`!uguu`);
 					});
 				}),
-				createBotCommand('myai', async (_params, { userName, say }) => {
+				createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
 					await messagesThrottle(() => {
 						return say(
-							`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/user/${userName} dnkLove`,
+							`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userName} dnkLove`,
 						);
 					});
 				}),
@@ -774,7 +794,7 @@ async function main() {
 			console.log(`[ERROR] Disconnected from Twitch: ${manually} ${reason}`);
 		});
 		twitchBot.onConnect(() => {
-			console.log(`Connected to ${twitchChannels.join(', ')}!`);
+			console.log(`Connected to ${Array.from(twitchChannels).join(', ')}!`);
 		});
 		twitchBot.onSub(({ broadcasterName, userName }) => {
 			console.log('onSub', broadcasterName, userName);
@@ -835,6 +855,8 @@ const openAIManager = new OpenAIManager(
 );
 const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
 const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
+const twitchChannels = new Set((process.env.TWITCH_CHANNELS ?? '').toLowerCase().split(',').filter(Boolean));
+const twitchAdmins = new Set((process.env.TWITCH_ADMINS ?? '').toLowerCase().split(',').filter(Boolean));
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
 const userMeaningMap: UserMeaningMap = new Map();
@@ -1058,6 +1080,7 @@ try {
 	console.log(`Using themes file: ${themeFilePath}`);
 	console.log(`Using ignore file: ${ignoreFilePath}`);
 	console.log(`Using OpenAI model: ${process.env.OPENAI_MODEL}`);
+	console.log('Twitch admins:', Array.from(twitchAdmins).join(', '));
 
 	await main();
 } catch (error: unknown) {
