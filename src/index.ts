@@ -150,7 +150,7 @@ async function generateImage(
 		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
-				content: themePrompt.replace('__THEME_', theme),
+				content: themePrompt.replace('__THEME__', theme),
 			},
 			{
 				role: 'user',
@@ -875,22 +875,28 @@ Guidelines:
 
 Start with the answers to the questions right away and skip any preamble. Avoid formatting and answer in plaintext.`;
 
-const themePrompt = `You are an expert in adapting avatar descriptions and scenes to specific themes. You will be provided with an interpretation of a username and a detailed avatar description. Your task is to subtly infuse these details with a given theme, primarily by adjusting the scene and environment.
+const themePrompt = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username and a detailed avatar description. Your task is to boldly infuse these elements with a given theme, creating a vivid and immersive thematic experience.
 
 Today's theme:
 """
-__THEME_
+__THEME__
 """
 
 Guidelines:
-1. Preserve the original interpretation of the username.
-2. Maintain the core aspects of the avatar's description.
-3. Primarily focus on adapting the scene and background to incorporate the theme.
-4. If the theme strongly relates to the avatar itself, you may suggest subtle changes to the avatar's accessories or features, but keep the main characteristics intact.
-5. If the theme contradicts the original interpretation, prioritize adjusting the scene to accommodate the theme.
-6. Provide a direct, structured response that can be easily processed.
+1. Make the theme a central and unmistakable element of the adaptation.
+2. Maintain the essence of the original username interpretation, but incorporate thematic elements.
+3. Adapt the avatar's description to embody the theme, while preserving its core identity.
+4. Transform the scene, background, and environment to fully represent the theme.
+5. Modify the avatar's accessories, features, and abilities to align with the theme when appropriate.
+6. If the theme strongly contradicts the original interpretation, create a compelling narrative that bridges this gap.
+7. Ensure every aspect of the description is influenced by the theme in some way.
 
-Be creative and detailed in your responses and skip any preamble.`;
+Provide a cohesive, detailed response that includes:
+- The thematically enhanced username interpretation
+- The boldly adapted avatar description
+- The fully themed scene and environment
+
+Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip any preambles.`;
 
 const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
