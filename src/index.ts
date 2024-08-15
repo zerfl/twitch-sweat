@@ -206,7 +206,7 @@ async function generateImage(
 
 	console.log(`[${uniqueId}]`, userMeaning, `Generated sentence: ${sentenceResult}`);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS: ${sentenceResult}`;
+	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. You MAY NOT change the prompt whatsoever: ${sentenceResult}`;
 
 	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
 
@@ -854,7 +854,6 @@ const openAIManager = new OpenAIManager(
 	process.env.CLOUDFLARE_AI_GATEWAY,
 );
 const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
-const twitchChannels = process.env.TWITCH_CHANNELS!.split(',');
 const twitchChannels = new Set((process.env.TWITCH_CHANNELS ?? '').toLowerCase().split(',').filter(Boolean));
 const twitchAdmins = new Set((process.env.TWITCH_ADMINS ?? '').toLowerCase().split(',').filter(Boolean));
 const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
@@ -885,7 +884,7 @@ You are an expert in interpreting usernames and creating avatar descriptions. I 
 3.3. Outfit: What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
 3.4. Accessories / Features: What unique accessories or features would enhance the avatar's connection to the username?
 4. Scene / Background: What kind of scene or background would best complement this avatar? Consider the setting, mood, and overall atmosphere.
-5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username must be in quotes and the text must be visually appealing.
+5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username MUST be included in quotes and the text must be visually appealing.
 
 Guidelines:
 - Create an engaging and immersive scene that resonates with the username's themes or ideas.
@@ -906,19 +905,14 @@ __THEME__
 
 Guidelines:
 1. Make the theme a central and unmistakable element of the adaptation.
-2. Maintain the essence of the original username interpretation, but incorporate thematic elements.
-3. Adapt the avatar's description to embody the theme, while preserving its core identity.
-4. Transform the scene, background, and environment to fully represent the theme.
-5. Modify the avatar's accessories, features, and abilities to align with the theme when appropriate.
+2. Keep the original username AS-IS and unchanged.
+3. Maintain the essence of the original username interpretation, but feel free to add thematic elements.
+4. Adapt the avatar's descriptions to incorporate the theme, while preserving its core identity.
+5. Transform the scene, background, and environment to fully embody the theme.
 6. If the theme strongly contradicts the original interpretation, create a compelling narrative that bridges this gap.
-7. Ensure every aspect of the description is influenced by the theme in some way.
+7. Keep the original structure of the provided information intact, focusing on the theme's integration.
 
-Provide a cohesive, detailed response that includes:
-- The thematically enhanced username interpretation
-- The boldly adapted avatar description
-- The fully themed scene and environment
-
-Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip any preambles.`;
+Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Avoid any preambles.`;
 
 const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
