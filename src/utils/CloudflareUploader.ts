@@ -1,6 +1,7 @@
 import FormData from 'form-data';
 import axios from 'axios';
 import { nanoid } from 'nanoid';
+import { sleep } from 'openai/core';
 
 interface CloudflareUploadSuccess {
 	success: true;
@@ -31,6 +32,17 @@ export class CloudflareUploader {
 		}
 	}
 
+	private async getImageDetails(id: string): Promise<number> {
+		try {
+			const url = `${this.baseUrl}/${this.accountId}/images/v1/${id}`;
+			const headers = { Authorization: `Bearer ${this.apiToken}` };
+			const response = await axios.get(url, { headers });
+			return response.status;
+		} catch (error) {
+			return 500;
+		}
+	}
+
 	private async sendRequest(formData: FormData): Promise<CloudflareUploadResponse> {
 		try {
 			const url = `${this.baseUrl}/${this.accountId}/images/v1`;
@@ -53,9 +65,21 @@ export class CloudflareUploader {
 		url: string,
 		metadata: Record<string, unknown> = {},
 	): Promise<CloudflareUploadResponse> {
+		let uniqueId = nanoid(10);
+		let details = await this.getImageDetails(uniqueId);
+
+		console.log(`Generated image ID is in use? ${details === 200 ? 'Yes' : 'No'}`);
+
+		while (details === 200) {
+			console.log(`Image ID ${uniqueId} already exists, generating a new ID...`);
+			uniqueId = nanoid(10);
+			details = await this.getImageDetails(uniqueId);
+			await sleep(1000);
+		}
+
 		const formData = new FormData();
 		formData.append('url', url);
-		formData.append('id', nanoid(10));
+		formData.append('id', uniqueId);
 		formData.append('metadata', JSON.stringify(metadata));
 
 		return this.sendRequest(formData);

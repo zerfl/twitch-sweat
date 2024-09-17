@@ -10,7 +10,8 @@ import throttledQueue from 'throttled-queue';
 import { IgnoreListManager } from './utils/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
-import { nanoid } from 'nanoid';
+import { ImageGeneratorFactory, ImageGeneratorType } from './utils/ImageGeneratorFactory';
+import { z } from 'zod';
 
 const requiredEnvVars = [
 	'TWITCH_CLIENT_ID',
@@ -18,7 +19,6 @@ const requiredEnvVars = [
 	'TWITCH_CHANNELS',
 	'TWITCH_ACCESS_TOKEN',
 	'TWITCH_REFRESH_TOKEN',
-	'OPENAI_API_KEY',
 	'OPENAI_IMAGES_PER_MINUTE',
 	'OPENAI_MODEL',
 	'DISCORD_BOT_TOKEN',
@@ -29,6 +29,8 @@ const requiredEnvVars = [
 	'CLOUDFLARE_API_TOKEN',
 	'CLOUDFLARE_IMAGES_URL',
 	'CLOUDFLARE_AI_GATEWAY',
+	'IMAGE_GENERATOR_TYPE',
+	'IMAGE_GENERATOR_SAFETY_CHECKER',
 ];
 requiredEnvVars.forEach((envVar) => {
 	if (!process.env[envVar]) {
@@ -63,14 +65,44 @@ type BroadcasterImages = {
 	};
 };
 
+type ImageUploadResult = {
+	success: boolean;
+	message: string;
+};
+
 type UserMeaningMap = Map<string, string>;
 type BroadcasterThemeMap = Map<string, string>;
 
-const isAdminOrBroadcaster = (userName: string, broadcasterName: string): boolean => {
-	const lowerUserName = userName.toLowerCase();
+const UsernameInterpretation = z.object({
+	interpretation: z.string(),
+	themes: z.array(z.string()),
+	avatar: z.object({
+		description: z.string(),
+		facial_expression: z.string(),
+		posture: z.string(),
+		outfit: z.string(),
+		accessories: z.array(z.string()),
+		quote: z.string(),
+	}),
+	scene: z.object({
+		background: z.string(),
+		banner: z.string(),
+	}),
+});
+
+const imageGeneratorType = process.env.IMAGE_GENERATOR_TYPE as ImageGeneratorType;
+const enableSafetyChecker = process.env.IMAGE_GENERATOR_SAFETY_CHECKER === 'true';
+const imageGenerator = ImageGeneratorFactory.createGenerator(imageGeneratorType);
+
+const isAdminOrBroadcaster = (userDisplayName: string, broadcasterName: string): boolean => {
+	const lowerUserName = userDisplayName.toLowerCase();
 	const lowerBroadcasterName = broadcasterName.toLowerCase();
 	const adminList = [...Array.from(twitchAdmins), lowerBroadcasterName];
 	return adminList.includes(lowerUserName);
+};
+
+const getRandomTemplate = (templates: DalleTemplate[]): DalleTemplate => {
+	return templates[Math.floor(Math.random() * templates.length)];
 };
 
 async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
@@ -109,25 +141,30 @@ async function storeImageData(broadcaster: string, user: string, imageData: Sing
 	return totalImages;
 }
 
-async function generateImage(
+async function generatePrompt(
 	username: string,
-	metadata: Record<string, unknown> = {},
 	theme: string,
 	style: string | null = null,
-): Promise<ImageGenerationResult> {
-	const uniqueId = nanoid(14);
-
+): Promise<{ analysis: string; revisedPrompt: string }> {
 	const userMeaning = getUserMeaning(username.toLowerCase());
 	const queryMessage =
 		userMeaning !== username
 			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
 			: `Username: ${username}`;
 
-	const queryAnalzerPrompt = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
+	const template = style
+		? dalleTemplates.find((t) => t.keyword.toLowerCase() === style.toLowerCase()) ?? getRandomTemplate(dalleTemplates)
+		: getRandomTemplate(dalleTemplates);
+
+	console.log(`Using template: ${template.name}`);
+
+	let queryAnalyzerPrompt = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
+	queryAnalyzerPrompt = queryAnalyzerPrompt.replace('__STYLE_NAME__', template.name);
+
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: queryAnalzerPrompt,
+			content: queryAnalyzerPrompt,
 		},
 		{
 			role: 'user',
@@ -135,62 +172,77 @@ async function generateImage(
 		},
 	];
 
-	let analysisResult = await openaiThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${username} / ${userMeaning}`);
-		return openAIManager.getChatCompletion(analysisMessages, 700);
+	const analysisResult = await openaiThrottle(() => {
+		console.log(`Analysing text: ${username} / ${userMeaning}`);
+		return openAIManager.getChatCompletion(analysisMessages, {
+			length: 500,
+			schema: UsernameInterpretation,
+			schemaName: 'usernameInterpretation',
+		});
 	});
 
-	/*
-	 * If the analysis doesn't end in a period, the next LLM prompt may not be generated correctly as
-	 * it tries to continue the sentence. This is a workaround to ensure the analysis ends in a period.
-	 *
-	 * Another solution would be by changing the way we provide the analysis result to the LLM.
-	 *
-	 */
-	if (!analysisResult.endsWith('.')) {
-		analysisResult += '.';
-	}
+	// TODO(daniel): Construct a proper prompt here.
+	let analysis = `Interpretation: ${analysisResult.interpretation}
+Themes: ${analysisResult.themes.join(', ')}
+Avatar:
+	- Description: ${analysisResult.avatar.description}
+	- Facial expression: ${analysisResult.avatar.facial_expression}
+	- Posture: ${analysisResult.avatar.posture}
+	- Outfit: ${analysisResult.avatar.outfit}
+	- Accessories: ${analysisResult.avatar.accessories.join(', ')}
+	- Quote: ${analysisResult.avatar.quote}
+Scene:
+	- Background: ${analysisResult.scene.background}
+	- Banner: ${analysisResult.scene.banner}`;
+
+	// console.log(analysis);
 
 	if (theme) {
-		console.log(`[${uniqueId}]`, userMeaning, `Original analysis: ${analysisResult}`);
-
 		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
-				content: themePrompt.replace('__THEME__', theme),
+				content: themePrompt.replace('__THEME__', theme).replace('__STYLE_NAME__', template.name),
 			},
 			{
 				role: 'user',
-				content: analysisResult,
+				content: analysis,
 			},
 		];
-		analysisResult = await openaiThrottle(() => {
-			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
-			return openAIManager.getChatCompletion(themeMessages, 700);
+		const themedAnalysis = await openaiThrottle(() => {
+			console.log(`Adding theme: ${theme}`);
+			return openAIManager.getChatCompletion(themeMessages, {
+				length: 500,
+				schema: UsernameInterpretation,
+				schemaName: 'usernameInterpretation',
+			});
 		});
 
-		console.log(`[${uniqueId}]`, userMeaning, `New analysis: ${analysisResult}`);
+		// TODO(daniel): Construct a proper prompt here.
+		analysis = `Interpretation: ${themedAnalysis.interpretation}
+Themes: ${themedAnalysis.themes.join(', ')}
+Avatar:
+	- Description: ${themedAnalysis.avatar.description}
+	- Facial expression: ${themedAnalysis.avatar.facial_expression}
+	- Posture: ${themedAnalysis.avatar.posture}
+	- Outfit: ${themedAnalysis.avatar.outfit}
+	- Accessories: ${themedAnalysis.avatar.accessories.join(', ')}
+	- Quote: ${themedAnalysis.avatar.quote}
+Scene:
+	- Background: ${themedAnalysis.scene.background}
+	- Banner: ${themedAnalysis.scene.banner}`;
+
+		console.log(`New analysis: ${analysis}`);
 	}
 
-	analysisResult = `- Literal username: ${username}\n${analysisResult}`;
+	analysis = `Literal username: ${username}\n${analysis}`;
 
-	let template;
-	if (style) {
-		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style!.toLowerCase());
-	}
-	if (!template) {
-		const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
-		template = dalleTemplates[templateIndex] as DalleTemplate;
-		style = template.keyword.toLowerCase();
-	}
 	const queryScenarioPrompt = scenarioPrompt
 		.replace('__STYLE_NAME__', template.name)
 		.replace('__STYLE_TEMPLATE__', template.value);
 
-	console.log(`[${uniqueId}]`, userMeaning, `Using template: ${template.name}`);
-	console.log(`[${uniqueId}]`, userMeaning, `Analysed text: ${analysisResult}`);
+	console.log(`Analysed text: ${analysis}`);
 
-	const sentenceResult = await openaiThrottle(() => {
+	const revisedPrompt = await openaiThrottle(() => {
 		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
@@ -198,54 +250,56 @@ async function generateImage(
 			},
 			{
 				role: 'user',
-				content: analysisResult,
+				content: analysis,
 			},
 		];
-		return openAIManager.getChatCompletion(generatePromptMessages, 400);
+		return openAIManager.getChatCompletion(generatePromptMessages, { length: 400 });
 	});
 
-	console.log(`[${uniqueId}]`, userMeaning, `Generated sentence: ${sentenceResult}`);
+	console.log(`Generated prompt: ${revisedPrompt}`);
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. You MAY NOT change the prompt whatsoever: ${sentenceResult}`;
+	return { analysis: analysis, revisedPrompt };
+}
 
-	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
+async function generateImage(prompt: string): Promise<ImageGenerationResult> {
+	const imagePromptSingleLine = prompt.replace(/\n/g, '');
 
-	const image = await dalleThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Creating image: ${imagePromptSingleLine}`);
-		return openAIManager.generateImage({
-			model: 'dall-e-3',
-			prompt: imagePrompt,
-			quality: 'standard',
+	const imageResult = await dalleThrottle(() => {
+		return imageGenerator.generateImage({
+			prompt: imagePromptSingleLine,
 			size: '1024x1024',
-			response_format: 'url',
+			numberOfImages: 1,
+			enableSafetyChecker: enableSafetyChecker,
 		});
 	});
 
-	console.log(`[${uniqueId}]`, userMeaning, 'Uploading image');
-	console.log(`[${uniqueId}]`, userMeaning, 'Revised prompt', image.data[0].revised_prompt);
-	const url = image.data[0].url!;
+	if (!imageResult.success) {
+		throw new Error(`Image generation failed: ${imageResult.message}`);
+	}
 
-	const updatedMetadata = {
-		...metadata,
-		theme: theme,
-		style: style,
+	return {
+		success: true,
+		message: imageResult.message,
+		analysis: imageResult.analysis || '',
+		revisedPrompt: imageResult.revisedPrompt || '',
 	};
+}
 
-	const uploadedImage = await cfUploader.uploadImageFromUrl(url, updatedMetadata);
+async function uploadImage(imageUrl: string, metadata: Record<string, unknown> = {}): Promise<ImageUploadResult> {
+	const uploadedImage = await cfUploader.uploadImageFromUrl(imageUrl, metadata);
 
 	if (!uploadedImage.success) {
-		console.log(`[${uniqueId}]`, userMeaning, `Image upload failed: ${uploadedImage.errors}`);
+		console.log(`Image upload failed: ${uploadedImage.errors}`);
+		console.log(uploadedImage.errors);
 		return { success: false, message: 'Error' };
 	}
 
 	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
-	console.log(`[${uniqueId}]`, userMeaning, `Image uploaded: ${finalUrl}`);
+	console.log(`Image uploaded: ${finalUrl}`);
 
 	return {
 		success: true,
 		message: finalUrl,
-		analysis: analysisResult,
-		revisedPrompt: image.data[0].revised_prompt!,
 	};
 }
 
@@ -314,6 +368,7 @@ async function handleEventAndSendImageMessage(
 	broadcasterName: string,
 	target: string,
 	gifting: boolean = false,
+	style: string | null = null,
 ): Promise<void> {
 	if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
 		console.log(`User ${target} is ignored, not generating image`);
@@ -321,50 +376,74 @@ async function handleEventAndSendImageMessage(
 	}
 	const verb = gifting ? 'gifting' : 'subscribing';
 
-	let imageResult: ImageGenerationResult;
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: verb };
 		const theme = getBroadcasterTheme(broadcasterName);
-		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
-	} catch (error) {
-		imageResult = { success: false, message: 'Error' };
-	}
 
-	if (!imageResult.success) {
+		const { analysis, revisedPrompt } = await retryAsyncOperation(generatePrompt, maxRetries, target, theme, style);
+		const imageResult = await retryAsyncOperation(generateImage, maxRetries, revisedPrompt);
+
+		if (!imageResult.success) {
+			await messagesThrottle(() => {
+				return twitchBot.say(
+					broadcasterName,
+					`Thank you @${target} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
+				);
+			});
+			return;
+		}
+
+		if (style) {
+			Object.assign(metadata, { style: style });
+		}
+
+		const uploadResult = await retryAsyncOperation(uploadImage, maxRetries, imageResult.message, metadata);
+
+		if (!uploadResult.success) {
+			await messagesThrottle(() => {
+				return twitchBot.say(
+					broadcasterName,
+					`Thank you @${target} for ${verb} dnkLove Unfortunately, I was unable to upload the image for you.`,
+				);
+			});
+			return;
+		}
+
+		await storeImageData(broadcasterName, target, {
+			image: uploadResult.message,
+			analysis: analysis,
+			revisedPrompt: revisedPrompt,
+			date: new Date().toISOString(),
+		});
+
+		for (const channelId of discordChannels) {
+			const channel = discordBot.channels.cache.get(channelId);
+			if (channel && channel.isTextBased()) {
+				try {
+					await channel.send(`Thank you \`${target}\` for ${verb}. Here's your sweatling: ${uploadResult.message}`);
+				} catch (error) {
+					console.log(`Error sending message to channel ${channelId}`, error);
+				}
+			}
+		}
+
+		await messagesThrottle(() => {
+			console.log(`Sending ${verb} image`);
+
+			return twitchBot.say(
+				broadcasterName,
+				`Thank you @${target} for ${verb} dnkLove This is for you: ${uploadResult.message}`,
+			);
+		});
+	} catch (error) {
+		console.log('Error in handleEventAndSendImageMessage:', error);
 		await messagesThrottle(() => {
 			return twitchBot.say(
 				broadcasterName,
-				`Thank you @${target} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
+				`Thank you @${target} for ${verb} dnkLove Unfortunately, an error occurred while generating an image for you.`,
 			);
 		});
-		return;
 	}
-	await storeImageData(broadcasterName, target, {
-		image: imageResult.message,
-		analysis: imageResult.analysis,
-		revisedPrompt: imageResult.revisedPrompt,
-		date: new Date().toISOString(),
-	});
-
-	for (const channelId of discordChannels) {
-		const channel = discordBot.channels.cache.get(channelId);
-		if (channel && channel.isTextBased()) {
-			try {
-				await channel.send(`Thank you \`${target}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
-			} catch (error) {
-				console.log(`Error sending message to channel ${channelId}`, error);
-			}
-		}
-	}
-
-	await messagesThrottle(() => {
-		console.log(`Sending ${verb} image`);
-
-		return twitchBot.say(
-			broadcasterName,
-			`Thank you @${target} for ${verb} dnkLove This is for you: ${imageResult.message}`,
-		);
-	});
 }
 
 async function loadThemes(filePath: PathLike) {
@@ -489,43 +568,6 @@ async function main() {
 						}
 					}
 				}
-			} else if (command === '!generateimage') {
-				const broadcasterName = params[0];
-				const theme = getBroadcasterTheme(broadcasterName);
-				params.splice(0, 1);
-
-				for (const param of params) {
-					const metadata = {
-						source: 'discord',
-						channel: broadcasterName,
-						target: param,
-						trigger: 'custom',
-					};
-					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata, theme);
-					if (!imageResult.success) {
-						await message.reply(`Unable to generate image for ${param}`);
-						continue;
-					}
-					await storeImageData(broadcasterName, param, {
-						image: imageResult.message,
-						analysis: imageResult.analysis,
-						revisedPrompt: imageResult.revisedPrompt,
-						date: new Date().toISOString(),
-					});
-
-					for (const channelId of discordChannels) {
-						const channel = discordBot.channels.cache.get(channelId);
-						if (channel && channel.isTextBased()) {
-							try {
-								await channel.send(
-									`Thank you \`${param}\` for subscribing. Here's your sweatling: ${imageResult.message}`,
-								);
-							} catch (error) {
-								console.log(`Error sending message to channel ${channelId}`, error);
-							}
-						}
-					}
-				}
 			} else {
 				await message.reply(`Unknown command.`);
 			}
@@ -570,8 +612,8 @@ async function main() {
 			authProvider,
 			channels: Array.from(twitchChannels),
 			commands: [
-				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				createBotCommand('aisweatling', async (params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
 						return;
 					}
 
@@ -580,16 +622,13 @@ async function main() {
 					const target = params[0].replace('@', '');
 					if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
 						await messagesThrottle(() => {
-							return say(`@${userName} ${target} does not partake in ai sweatlings.`);
+							return say(`@${userDisplayName} ${target} does not partake in ai sweatlings.`);
 						});
 						return;
 					}
 
-					// is the nullish coalescing operator really necessary here? if no style was provided, it would be undefined, not null. both falsy, but still...
-					// i want the intent to be clear, so i'll leave it in for now
 					const specifiedStyle = params[1] ?? null;
 
-					let imageResult: ImageGenerationResult;
 					try {
 						const metadata = {
 							source: 'twitch',
@@ -598,60 +637,136 @@ async function main() {
 							trigger: 'custom',
 						};
 						const theme = getBroadcasterTheme(broadcasterName);
-						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme, specifiedStyle);
-					} catch (error) {
-						imageResult = { success: false, message: 'Error' };
-					}
 
-					if (!imageResult.success) {
-						await messagesThrottle(() => {
-							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you.`, 500));
-						});
+						const { analysis, revisedPrompt } = await retryAsyncOperation(
+							generatePrompt,
+							maxRetries,
+							target,
+							theme,
+							specifiedStyle,
+						);
+						const imageResult = await retryAsyncOperation(generateImage, maxRetries, revisedPrompt);
 
-						return;
-					}
-					await storeImageData(broadcasterName, params[0], {
-						image: imageResult.message,
-						analysis: imageResult.analysis,
-						revisedPrompt: imageResult.revisedPrompt,
-						date: new Date().toISOString(),
-					});
+						if (!imageResult.success) {
+							await messagesThrottle(() => {
+								return say(truncate(`Sorry, @${userDisplayName}, I was unable to generate an image for you.`, 500));
+							});
+							return;
+						}
 
-					try {
-						discordBot.user!.setActivity({
-							name: 'ImageGenerations',
-							state: `🖼️ generating images`,
-							type: ActivityType.Custom,
-						});
-					} catch (error) {
-						console.log('Discord error', error);
-					}
+						console.log(`Generated image: ${imageResult.message}, revised prompt: ${imageResult.revisedPrompt}`);
 
-					for (const channelId of discordChannels) {
-						const channel = discordBot.channels.cache.get(channelId);
-						if (channel && channel.isTextBased()) {
-							try {
-								await channel.send(
-									`@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
+						const uploadResult = await retryAsyncOperation(uploadImage, maxRetries, imageResult.message, metadata);
+
+						if (!uploadResult.success) {
+							await messagesThrottle(() => {
+								return twitchBot.say(
+									broadcasterName,
+									`Sorry @${userDisplayName}, I was unable to upload the image. @partyhorst FIX THIS!`,
 								);
-							} catch (error) {
-								console.log(`Error sending message to channel ${channelId}`, error);
+							});
+							return;
+						}
+
+						await storeImageData(broadcasterName, params[0], {
+							image: uploadResult.message,
+							analysis: analysis,
+							revisedPrompt: revisedPrompt,
+							date: new Date().toISOString(),
+						});
+
+						for (const channelId of discordChannels) {
+							const channel = discordBot.channels.cache.get(channelId);
+							if (channel && channel.isTextBased()) {
+								try {
+									await channel.send(
+										`@${userDisplayName} requested generation for \`${target}\`. Here's the sweatling: ${uploadResult.message}`,
+									);
+								} catch (error) {
+									console.log(`Error sending message to channel ${channelId}`, error);
+								}
 							}
 						}
+
+						await messagesThrottle(() => {
+							return say(`@${userDisplayName} Here's your image: ${uploadResult.message}`);
+						});
+					} catch (error) {
+						await messagesThrottle(() => {
+							return say(truncate(`Sorry, ${userDisplayName}, an error occurred while generating the image.`, 500));
+						});
+					}
+				}),
+				createBotCommand('customai', async (params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
+						return;
 					}
 
-					await messagesThrottle(() => {
-						return say(`@${userName} Here's your image: ${imageResult.message}`);
-					});
+					if (params.length === 0) return;
+
+					const customPrompt = params.join(' ');
+
+					try {
+						const imageResult = await retryAsyncOperation(generateImage, maxRetries, customPrompt);
+
+						if (!imageResult.success) {
+							await messagesThrottle(() => {
+								return say(truncate(`Sorry, ${userDisplayName}, I was unable to generate an image for you.`, 500));
+							});
+							return;
+						}
+
+						console.log(`Generated image: ${imageResult.message}, revised prompt: ${imageResult.revisedPrompt}`);
+
+						// const uploadResult = await retryAsyncOperation(uploadImage, maxRetries, imageResult.message, metadata);
+						//
+						// if (!uploadResult.success) {
+						// 	await messagesThrottle(() => {
+						// 		return twitchBot.say(
+						// 			broadcasterName,
+						// 			`Sorry @${userDisplayName}, I was unable to upload the image. @partyhorst FIX THIS!`,
+						// 		);
+						// 	});
+						// 	return;
+						// }
+
+						await storeImageData(broadcasterName, 'custom', {
+							image: imageResult.message,
+							analysis: 'Custom prompt',
+							revisedPrompt: customPrompt,
+							date: new Date().toISOString(),
+						});
+
+						for (const channelId of discordChannels) {
+							const channel = discordBot.channels.cache.get(channelId);
+							if (channel && channel.isTextBased()) {
+								try {
+									await channel.send(
+										`@${userDisplayName} requested generation. Here's the sweatling: ${imageResult.message}`,
+									);
+								} catch (error) {
+									console.log(`Error sending message to channel ${channelId}`, error);
+								}
+							}
+						}
+
+						await messagesThrottle(() => {
+							return say(`@${userDisplayName} Here's your image: ${imageResult.message}`);
+						});
+					} catch (error) {
+						await messagesThrottle(() => {
+							return say(truncate(`Sorry, ${userDisplayName}, an error occurred while generating the image.`, 500));
+						});
+					}
 				}),
-				createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				createBotCommand('settheme', async (params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
 						return;
 					}
 
 					if (params.length === 0) {
 						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a theme.`);
+							return say(`@${userDisplayName} Please provide a theme.`);
 						});
 						return;
 					}
@@ -661,11 +776,11 @@ async function main() {
 					await saveThemes(themeFilePath);
 
 					await messagesThrottle(() => {
-						return say(`@${userName} Theme set to: ${theme}`);
+						return say(`@${userDisplayName} Theme set to: ${theme}`);
 					});
 				}),
-				createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				createBotCommand('deltheme', async (_params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
 						return;
 					}
 
@@ -673,27 +788,27 @@ async function main() {
 					await saveThemes(themeFilePath);
 
 					await messagesThrottle(() => {
-						return say(`@${userName} Theme removed.`);
+						return say(`@${userDisplayName} Theme removed.`);
 					});
 				}),
-				createBotCommand('gettheme', async (_params, { userName, broadcasterName, say }) => {
+				createBotCommand('gettheme', async (_params, { userDisplayName, broadcasterName, say }) => {
 					const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
 					await messagesThrottle(() => {
 						if (!theme) {
-							return say(`@${userName} No theme set.`);
+							return say(`@${userDisplayName} No theme set.`);
 						}
 
-						return say(`@${userName} Current theme: ${theme}`);
+						return say(`@${userDisplayName} Current theme: ${theme}`);
 					});
 				}),
-				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				createBotCommand('setmeaning', async (params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
 						return;
 					}
 
 					if (params.length < 2) {
 						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username and a meaning.`);
+							return say(`@${userDisplayName} Please provide a username and a meaning.`);
 						});
 						return;
 					}
@@ -704,17 +819,17 @@ async function main() {
 					await saveMeanings(meaningsFilePath);
 
 					await messagesThrottle(() => {
-						return say(`@${userName} Meaning for ${user} set.`);
+						return say(`@${userDisplayName} Meaning for ${user} set.`);
 					});
 				}),
-				createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				createBotCommand('delmeaning', async (params, { userDisplayName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userDisplayName, broadcasterName)) {
 						return;
 					}
 
 					if (params.length !== 1) {
 						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
+							return say(`@${userDisplayName} Please provide a username.`);
 						});
 						return;
 					}
@@ -724,16 +839,16 @@ async function main() {
 
 					await messagesThrottle(() => {
 						if (!wasRemoved) {
-							return say(`@${userName} Meaning for ${user} not found.`);
+							return say(`@${userDisplayName} Meaning for ${user} not found.`);
 						}
 
-						return say(`@${userName} Meaning for ${user} removed.`);
+						return say(`@${userDisplayName} Meaning for ${user} removed.`);
 					});
 				}),
-				createBotCommand('getmeaning', async (params, { userName, say }) => {
+				createBotCommand('getmeaning', async (params, { userDisplayName, say }) => {
 					if (params.length !== 1) {
 						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
+							return say(`@${userDisplayName} Please provide a username.`);
 						});
 						return;
 					}
@@ -741,49 +856,49 @@ async function main() {
 					const user = params[0];
 					const meaning = getUserMeaning(user.toLowerCase());
 					await messagesThrottle(() => {
-						return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
+						return say(`@${userDisplayName} ${user} means '${meaning}' dnkNoted`);
 					});
 				}),
-				createBotCommand('noai', async (_params, { userName, say }) => {
-					await ignoreListManager.addToIgnoreList(userName.toLowerCase());
+				createBotCommand('noai', async (_params, { userDisplayName, say }) => {
+					await ignoreListManager.addToIgnoreList(userDisplayName.toLowerCase());
 
 					await messagesThrottle(() => {
-						return say(`@${userName} You will no longer receive AI sweatlings`);
+						return say(`@${userDisplayName} You will no longer receive AI sweatlings`);
 					});
 				}),
-				createBotCommand('yesai', async (_params, { userName, say }) => {
-					await ignoreListManager.removeFromIgnoreList(userName.toLowerCase());
+				createBotCommand('yesai', async (_params, { userDisplayName, say }) => {
+					await ignoreListManager.removeFromIgnoreList(userDisplayName.toLowerCase());
 
 					await messagesThrottle(() => {
-						return say(`@${userName} You will now receive AI sweatlings`);
+						return say(`@${userDisplayName} You will now receive AI sweatlings`);
 					});
 				}),
-				createBotCommand('ping', async (_params, { userName, say }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
+				createBotCommand('ping', async (_params, { userDisplayName, say }) => {
+					if (userDisplayName.toLowerCase() !== 'partyhorst') return;
 
 					await messagesThrottle(() => {
-						return say(`@${userName} pong`);
+						return say(`@${userDisplayName} pong`);
 					});
 				}),
-				createBotCommand('say', async (params, { say, userName }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
+				createBotCommand('say', async (params, { say, userDisplayName }) => {
+					if (userDisplayName.toLowerCase() !== 'partyhorst') return;
 					if (params.length === 0) return;
 
 					await messagesThrottle(() => {
 						return say(params.join(' '));
 					});
 				}),
-				createBotCommand('uguu', async (_params, { say, userName }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
+				createBotCommand('uguu', async (_params, { say, userDisplayName }) => {
+					if (userDisplayName.toLowerCase() !== 'partyhorst') return;
 
 					await messagesThrottle(() => {
 						return say(`!uguu`);
 					});
 				}),
-				createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
+				createBotCommand('myai', async (_params, { userDisplayName, broadcasterName, say }) => {
 					await messagesThrottle(() => {
 						return say(
-							`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userName} dnkLove`,
+							`@${userDisplayName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userDisplayName} dnkLove`,
 						);
 					});
 				}),
@@ -796,21 +911,21 @@ async function main() {
 		twitchBot.onConnect(() => {
 			console.log(`Connected to ${Array.from(twitchChannels).join(', ')}!`);
 		});
-		twitchBot.onSub(({ broadcasterName, userName }) => {
-			console.log('onSub', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onSub(({ broadcasterName, userDisplayName }) => {
+			console.log('onSub', broadcasterName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userDisplayName);
 		});
-		twitchBot.onResub(({ broadcasterName, userName }) => {
-			console.log('onResub', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onResub(({ broadcasterName, userDisplayName }) => {
+			console.log('onResub', broadcasterName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userDisplayName);
 		});
-		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName }) => {
-			console.log('onGiftPaidUpgrade', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userDisplayName }) => {
+			console.log('onGiftPaidUpgrade', broadcasterName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userDisplayName);
 		});
-		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName }) => {
-			console.log('onPrimePaidUpgrade', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userDisplayName }) => {
+			console.log('onPrimePaidUpgrade', broadcasterName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userDisplayName);
 		});
 		twitchBot.onStandardPayForward(({ broadcasterName, gifterName }) => {
 			console.log('onStandardPayForward', broadcasterName, gifterName);
@@ -824,9 +939,9 @@ async function main() {
 			console.log('onCommunitySub', broadcasterName, gifterName || 'Anonymous');
 			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName || 'Anonymous', true);
 		});
-		twitchBot.onSubGift(({ broadcasterName, userName }) => {
-			console.log('onSubGift', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onSubGift(({ broadcasterName, userDisplayName }) => {
+			console.log('onSubGift', broadcasterName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userDisplayName);
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
@@ -862,7 +977,7 @@ const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
-const openaiThrottle = throttledQueue(30, 60 * 1000, true);
+const openaiThrottle = throttledQueue(1000, 60 * 1000, true);
 const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
 const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
 
@@ -884,7 +999,8 @@ You are an expert in interpreting usernames and creating avatar descriptions. I 
 3.3. Outfit: What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
 3.4. Accessories / Features: What unique accessories or features would enhance the avatar's connection to the username?
 4. Scene / Background: What kind of scene or background would best complement this avatar? Consider the setting, mood, and overall atmosphere.
-5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username MUST be included in quotes and the text must be visually appealing.
+5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username MUST be included in quotes and the text must be visually appealing. Refer to the username to include as simply a text element in the scene.
+6. Quote: Provide a short quote that the avatar might say, given the scene. Keep it concise and natural-sounding.
 
 Guidelines:
 - Create an engaging and immersive scene that resonates with the username's themes or ideas.
@@ -893,6 +1009,10 @@ Guidelines:
 - Be brave, creative, provocative, literal, humorous and original in your interpretations. 
 - Avoid mentioning ears, tails, or other animalistic features unless directly relevant to the username or its interpretation.
 - Avoid mentioning hair or other physical attributes that are not explicitly part of the username or its interpretation.
+- You may be edgy, explicit and daring in your interpretations. After all, this is a creative exercise.
+- Use simple and direct language to convey your ideas, avoiding complex or convoluted sentences. Children should be able to understand your descriptions.
+
+The created scene and avatar will be used in an art piece. The style of the art piece is __STYLE_NAME__ and therefore the avatar and information should be designed in a way that fits this style.
 
 Start with the answers to the questions right away and skip any preamble. Avoid formatting and answer in plaintext.`;
 
@@ -912,7 +1032,10 @@ Guidelines:
 6. If the theme strongly contradicts the original interpretation, create a compelling narrative that bridges this gap.
 7. Keep the original structure of the provided information intact, focusing on the theme's integration.
 
-Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Avoid any preambles.`;
+The created scene and avatar will be used in an art piece. The style of the art piece is __STYLE_NAME__ and therefore the avatar and information should be designed in a way that fits this style.
+
+Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response.
+Start with your response right away and skip any preamble. Avoid formatting and answer in plaintext.`;
 
 const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
@@ -924,11 +1047,14 @@ Template: """__STYLE_TEMPLATE__"""
 
 Instructions:
 - Fill in each placeholder with clear, direct language that resonates with the overall theme and style indicated.
+- Refer to the avatar as simply 'character'.
+- Use very simple sentences and avoid convoluted or complex phrasing. It must be easy to understand.
 - Only replace the text within the brackets []. Do not alter the template's wording or structure.
 - Provide a response suitable for immediate use, reflecting the specified style and theme.
 - Quotes may be placed around the literal username only.
 - Avoid newlines. Keep the text in a single paragraph.
 - Make sure the final text is concise and fits within 150 words.
+- If the template contains a [quote] placeholder, AVOID a banner. Otherwise include a banner.
 
 Provide only the processed text, skipping any preamble or explanations.`;
 
@@ -940,7 +1066,7 @@ const dalleTemplates: DalleTemplate[] = [
 			'Illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The scene is set in [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'watercolor',
+		name: 'watercolor painting',
 		keyword: 'watercolor',
 		value:
 			'Watercolor painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The soft, fluid background depicts [avatar scene and environment, including feeling and mood].',
@@ -958,58 +1084,58 @@ const dalleTemplates: DalleTemplate[] = [
 			'Oil painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The rich and textured background depicts [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'flat',
+		name: 'flat illustration',
 		keyword: 'flat',
 		value:
 			'Flat design illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The simplistic background features bold colors and [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'glitch art',
+		name: 'glitch art illustration',
 		keyword: 'glitch',
 		value:
 			'Glitch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment, including feeling and mood] with vibrant glitches.',
 	},
 	{
-		name: 'Byzantine art',
+		name: 'Byzantine art illustration',
 		keyword: 'byzantine',
 		value:
 			'Byzantine-inspired illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The golden, vibrant background depicts [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'expressionism',
+		name: 'expressionism drawing',
 		keyword: 'expressionism',
 		value:
 			'Expressionist drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The background features [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'charcoal',
+		name: 'charcoal drawing',
 		keyword: 'charcoal',
 		value:
 			'Charcoal drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The background depicts [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'neon graffiti',
+		name: 'neon graffiti illustration',
 		keyword: 'neon',
 		value:
 			'Illustration of a neon graffiti scene featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'vintage manga',
+		name: 'vintage manga illustration',
 		keyword: 'vintagemanga',
 		value:
 			'1980s vintage manga still frame depicting a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop features [avatar scene and environment, including feeling and mood] with cell shading, capturing a grainy and vintage look with overlapping visual channels.',
 	},
 	{
-		name: 'Rumiko Takahashi style',
+		name: 'Rumiko Takahashi illustration',
 		keyword: 'takahashi',
 		value:
 			'Illustration reminiscent of exaggeration, bold lines, and vivid colors featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The grainy, surreal background depicts [avatar scene and environment, including feeling and mood] with vintage anime elements.',
 	},
 	{
-		name: 'Yoshiyuki Sadamoto style',
+		name: 'Yoshiyuki Sadamoto illustration',
 		keyword: 'sadamoto',
 		value:
-			'Dystopian and mysterious illustration in the style of Sadamoto, featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The dystopian and surreal background showcases [avatar scene and environment, including feeling and mood] with grainy textures and vintage aesthetics.',
+			'Dystopian and mysterious illustration, featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The dystopian and surreal background showcases [avatar scene and environment, including feeling and mood] with grainy textures and vintage aesthetics.',
 	},
 	{
 		name: 'minimalist pixel art',
@@ -1018,7 +1144,7 @@ const dalleTemplates: DalleTemplate[] = [
 			'Minimalist pixel art scene featuring a simplified cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture]. [avatar physique]. The clean, geometric background depicts [avatar scene and environment, including feeling and mood].',
 	},
 	{
-		name: 'pixel art portrait',
+		name: 'pixel portrait art',
 		keyword: 'pixelportrait',
 		value:
 			'Pixel art portrait focusing on a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The detailed, close-up background showcases [avatar scene and environment, including feeling and mood].',
@@ -1027,13 +1153,19 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'sketch art',
 		keyword: 'sketch',
 		value:
-			'Detailed sketch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The sketchy background depicts [avatar scene and environment, including feeling and mood].',
+			'A detailed sketch featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The sketchy background depicts [avatar scene and environment, including feeling and mood].',
 	},
 	{
 		name: 'fauvism art',
 		keyword: 'fauvism',
 		value:
-			'Fauvism-inspired painting of a vibrant cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The bold, colorful background showcases [avatar scene and environment, including feeling and mood].',
+			'A fauvism-inspired painting of a vibrant cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The bold, colorful background showcases [avatar scene and environment, including feeling and mood].',
+	},
+	{
+		name: 'anime illustration',
+		keyword: 'anime',
+		value:
+			'Screenshot of a 90s anime episode depicting a CUTE BLUE-SKINNED round-faced character, the subtitles say "[quote]". The character wears [avatar outfit]. [banner]. [avatar facial, avatar expression, avatar posture, avatar physique, avatar actions, scene].',
 	},
 ];
 
