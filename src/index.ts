@@ -912,7 +912,7 @@ Guidelines:
 6. If the theme strongly contradicts the original interpretation, create a compelling narrative that bridges this gap.
 7. Keep the original structure of the provided information intact, focusing on the theme's integration.
 
-Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Avoid any preambles.`;
+Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip the original analysis in your response.`;
 
 const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
 
