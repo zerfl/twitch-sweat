@@ -63,6 +63,13 @@ type BroadcasterImages = {
 	};
 };
 
+interface EventData {
+	broadcasterName: string;
+	userName: string;
+	userDisplayName: string;
+	isGifting?: boolean;
+}
+
 type UserMeaningMap = Map<string, string>;
 type BroadcasterThemeMap = Map<string, string>;
 
@@ -111,6 +118,7 @@ async function storeImageData(broadcaster: string, user: string, imageData: Sing
 
 async function generateImage(
 	username: string,
+	userDisplayName: string,
 	metadata: Record<string, unknown> = {},
 	theme: string,
 	style: string | null = null,
@@ -120,8 +128,8 @@ async function generateImage(
 	const userMeaning = getUserMeaning(username.toLowerCase());
 	const queryMessage =
 		userMeaning !== username
-			? `Literal username: ${username}\nIntended meaning: ${userMeaning}`
-			: `Username: ${username}`;
+			? `Literal username: ${userDisplayName}\nIntended meaning: ${userMeaning}`
+			: `Username: ${userDisplayName}`;
 
 	const queryAnalzerPrompt = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
 	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
@@ -136,7 +144,7 @@ async function generateImage(
 	];
 
 	let analysisResult = await openaiThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${username} / ${userMeaning}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${userDisplayName} / ${userMeaning}`);
 		return openAIManager.getChatCompletion(analysisMessages, 700);
 	});
 
@@ -172,7 +180,7 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `New analysis: ${analysisResult}`);
 	}
 
-	analysisResult = `- Literal username: ${username}\n${analysisResult}`;
+	analysisResult = `- Literal username: ${userDisplayName}\n${analysisResult}`;
 
 	let template;
 	if (style) {
@@ -311,21 +319,21 @@ async function retryAsyncOperation<T, Args extends unknown[]>(
 async function handleEventAndSendImageMessage(
 	twitchBot: Bot,
 	discordBot: DiscordClient,
-	broadcasterName: string,
-	target: string,
-	gifting: boolean = false,
+	eventData: EventData,
 ): Promise<void> {
-	if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
-		console.log(`User ${target} is ignored, not generating image`);
+	const { broadcasterName, userName, userDisplayName, isGifting = false } = eventData;
+
+	if (ignoreListManager.isUserIgnored(userName.toLowerCase())) {
+		console.log(`User ${userName} is ignored, not generating image`);
 		return;
 	}
-	const verb = gifting ? 'gifting' : 'subscribing';
+	const verb = isGifting ? 'gifting' : 'subscribing';
 
 	let imageResult: ImageGenerationResult;
 	try {
-		const metadata = { source: 'twitch', channel: broadcasterName, target: target, trigger: verb };
+		const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: verb };
 		const theme = getBroadcasterTheme(broadcasterName);
-		imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme);
+		imageResult = await retryAsyncOperation(generateImage, maxRetries, userName, userDisplayName, metadata, theme);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
 	}
@@ -334,12 +342,12 @@ async function handleEventAndSendImageMessage(
 		await messagesThrottle(() => {
 			return twitchBot.say(
 				broadcasterName,
-				`Thank you @${target} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
+				`Thank you @${userName} for ${verb} dnkLove Unfortunately, I was unable to generate an image for you.`,
 			);
 		});
 		return;
 	}
-	await storeImageData(broadcasterName, target, {
+	await storeImageData(broadcasterName, userName, {
 		image: imageResult.message,
 		analysis: imageResult.analysis,
 		revisedPrompt: imageResult.revisedPrompt,
@@ -350,7 +358,7 @@ async function handleEventAndSendImageMessage(
 		const channel = discordBot.channels.cache.get(channelId);
 		if (channel && channel.isTextBased()) {
 			try {
-				await channel.send(`Thank you \`${target}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
+				await channel.send(`Thank you \`${userName}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
 			} catch (error) {
 				console.log(`Error sending message to channel ${channelId}`, error);
 			}
@@ -362,7 +370,7 @@ async function handleEventAndSendImageMessage(
 
 		return twitchBot.say(
 			broadcasterName,
-			`Thank you @${target} for ${verb} dnkLove This is for you: ${imageResult.message}`,
+			`Thank you @${userName} for ${verb} dnkLove This is for you: ${imageResult.message}`,
 		);
 	});
 }
@@ -501,7 +509,7 @@ async function main() {
 						target: param,
 						trigger: 'custom',
 					};
-					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, metadata, theme);
+					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, param, metadata, theme);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
@@ -598,7 +606,15 @@ async function main() {
 							trigger: 'custom',
 						};
 						const theme = getBroadcasterTheme(broadcasterName);
-						imageResult = await retryAsyncOperation(generateImage, maxRetries, target, metadata, theme, specifiedStyle);
+						imageResult = await retryAsyncOperation(
+							generateImage,
+							maxRetries,
+							target,
+							target,
+							metadata,
+							theme,
+							specifiedStyle,
+						);
 					} catch (error) {
 						imageResult = { success: false, message: 'Error' };
 					}
@@ -794,39 +810,57 @@ async function main() {
 			console.log(`[ERROR] Disconnected from Twitch: ${manually} ${reason}`);
 		});
 		twitchBot.onConnect(() => {
-			console.log(`Connected to ${Array.from(twitchChannels).join(', ')}!`);
+			console.log(`Connected to chat server`);
 		});
-		twitchBot.onSub(({ broadcasterName, userName }) => {
-			console.log('onSub', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onJoin(({ broadcasterName }) => {
+			console.log(`Joined channel ${broadcasterName}`);
 		});
-		twitchBot.onResub(({ broadcasterName, userName }) => {
-			console.log('onResub', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onSub(({ broadcasterName, userName, userDisplayName }) => {
+			console.log('onSub', broadcasterName, userName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
-		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName }) => {
-			console.log('onGiftPaidUpgrade', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onResub(({ broadcasterName, userName, userDisplayName }) => {
+			console.log('onResub', broadcasterName, userName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
-		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName }) => {
-			console.log('onPrimePaidUpgrade', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName, userDisplayName }) => {
+			console.log('onGiftPaidUpgrade', broadcasterName, userName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
-		twitchBot.onStandardPayForward(({ broadcasterName, gifterName }) => {
-			console.log('onStandardPayForward', broadcasterName, gifterName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
+		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName, userDisplayName }) => {
+			console.log('onPrimePaidUpgrade', broadcasterName, userName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
-		twitchBot.onCommunityPayForward(({ broadcasterName, gifterName }) => {
-			console.log('onCommunityPayForward', broadcasterName, gifterName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName, true);
+		twitchBot.onStandardPayForward(({ broadcasterName, gifterName, gifterDisplayName }) => {
+			console.log('onStandardPayForward', broadcasterName, gifterName, gifterDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, {
+				broadcasterName,
+				userName: gifterName,
+				userDisplayName: gifterDisplayName,
+				isGifting: true,
+			});
 		});
-		twitchBot.onCommunitySub(({ broadcasterName, gifterName }) => {
-			console.log('onCommunitySub', broadcasterName, gifterName || 'Anonymous');
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, gifterName || 'Anonymous', true);
+		twitchBot.onCommunityPayForward(({ broadcasterName, gifterName, gifterDisplayName }) => {
+			console.log('onCommunityPayForward', broadcasterName, gifterName, gifterDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, {
+				broadcasterName,
+				userName: gifterName,
+				userDisplayName: gifterDisplayName,
+				isGifting: true,
+			});
 		});
-		twitchBot.onSubGift(({ broadcasterName, userName }) => {
-			console.log('onSubGift', broadcasterName, userName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, broadcasterName, userName);
+		twitchBot.onCommunitySub(({ broadcasterName, gifterName, gifterDisplayName }) => {
+			console.log('onCommunitySub', broadcasterName, gifterName || 'anonymous', gifterDisplayName || 'Anonymous');
+			handleEventAndSendImageMessage(twitchBot, discordBot, {
+				broadcasterName,
+				userName: gifterName || 'Anonymous',
+				userDisplayName: gifterDisplayName || 'Anonymous',
+				isGifting: true,
+			});
+		});
+		twitchBot.onSubGift(({ broadcasterName, userName, userDisplayName }) => {
+			console.log('onSubGift', broadcasterName, userName, userDisplayName);
+			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
