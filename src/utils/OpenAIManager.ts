@@ -27,6 +27,11 @@ export class OpenAIManager {
 			model: this.model,
 			temperature: 1,
 			max_tokens: length,
+			store: true,
+			metadata: {
+				source: 'twitch',
+				product: 'ai-images',
+			},
 			stop: stop.length ? stop : null,
 		});
 
