@@ -862,7 +862,7 @@ const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
-const openaiThrottle = throttledQueue(30, 60 * 1000, true);
+const openaiThrottle = throttledQueue(500, 60 * 1000, true);
 const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
 const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
 
@@ -899,9 +899,7 @@ Start with the answers to the questions right away and skip any preamble. Avoid 
 const themePrompt = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username and a detailed avatar description. Your task is to boldly infuse these elements with a given theme, creating a vivid and immersive thematic experience.
 
 Today's theme:
-"""
 __THEME__
-"""
 
 Guidelines:
 1. Make the theme a central and unmistakable element of the adaptation.
@@ -920,7 +918,8 @@ Replace the placeholders strictly with the relevant information, without introdu
 
 The rest of the template, including the original wording, base prompt, and the image style defined as __STYLE_NAME__, must remain unchanged.
 
-Template: """__STYLE_TEMPLATE__"""
+Template:
+__STYLE_TEMPLATE__
 
 Instructions:
 - Fill in each placeholder with clear, direct language that resonates with the overall theme and style indicated.
@@ -1057,7 +1056,7 @@ try {
 	};
 
 	await Promise.all([
-		ensureFileExists(tokenFilePath),
+		ensureFileExists(tokenFilePath, JSON.stringify({})),
 		ensureFileExists(imagesFilePath, JSON.stringify({})),
 		ensureFileExists(ignoreFilePath, JSON.stringify([])),
 		ensureFileExists(meaningsFilePath, JSON.stringify({})),
