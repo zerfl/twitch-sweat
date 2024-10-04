@@ -509,7 +509,14 @@ async function main() {
 						target: param,
 						trigger: 'custom',
 					};
-					const imageResult = await retryAsyncOperation(generateImage, maxRetries, param, param, metadata, theme);
+					const imageResult = await retryAsyncOperation(
+						generateImage,
+						maxRetries,
+						param.toLowerCase(),
+						param,
+						metadata,
+						theme,
+					);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
@@ -609,7 +616,7 @@ async function main() {
 						imageResult = await retryAsyncOperation(
 							generateImage,
 							maxRetries,
-							target,
+							target.toLowerCase(),
 							target,
 							metadata,
 							theme,
