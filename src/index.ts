@@ -1048,9 +1048,9 @@ Today's theme:
 __THEME__
 
 Guidelines:
-1. Make the theme a central and unmistakable element of the adaptation.
+1. Make the theme a central and unmistakable element of the scene.
 2. Keep the original username AS-IS and unchanged.
-3. Maintain the essence of the original username interpretation.
+3. Maintain the original username interpretation.
 4. Adapt the avatar's descriptions to incorporate the theme, while preserving its core identity.
 4.1. For example - if the username was "Panzerfaust" and the original scene had a Panzerfaust weapon, it should still be present in the scene after adaptation.
 5. Transform the scene, background, and environment to fully embody the theme.
