@@ -11,6 +11,7 @@ import { IgnoreListManager } from './utils/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
 import { nanoid } from 'nanoid';
+import { z } from 'zod';
 
 const requiredEnvVars = [
 	'TWITCH_CLIENT_ID',
@@ -73,6 +74,71 @@ interface EventData {
 type UserMeaningMap = Map<string, string>;
 type BroadcasterThemeMap = Map<string, string>;
 
+const analysisSchema = z.object({
+	reasoning: z.object({
+		reasoning_steps: z.array(z.string()).describe('The reasoning steps leading to the final conclusion.'),
+		answer: z.string().describe('The final answer, taking into account the reasoning steps.'),
+	}),
+	interpretation: z.string().describe('The final interpretation of the user input.'),
+});
+
+const sceneSchema = z.object({
+	interpretation: z.object({
+		literal: z.string(),
+		themes_ideas: z.array(z.string()),
+	}),
+	subject: z.object({
+		facial_expression: z.string(),
+		posture: z.string(),
+		clothes: z.object({
+			type: z.string(),
+			attributes: z.array(z.string()),
+		}),
+		accessories: z.array(z.string()),
+		looks: z.string(),
+	}),
+	lighting: z.object({
+		type: z.string(),
+		attributes: z.array(z.string()),
+	}),
+	objects: z.object({
+		banner: z
+			.object({
+				content: z.string(),
+				font_style: z.string(),
+				font_mood: z.string(),
+			})
+			.describe('A way to show the username in the scene'),
+		additional_objects: z
+			.array(
+				z.object({
+					name: z.string(),
+					type: z.string(),
+					position: z.string(),
+					attributes: z.array(z.string()),
+				}),
+			)
+			.describe('Objects in the scene that are relevant to the user or action to spice up the scene'),
+	}),
+	scene: z.object({
+		setting: z.string(),
+		mood: z.string(),
+		atmosphere: z.string(),
+		background: z.string(),
+		narrative: z.object({
+			plot: z.string(),
+			subject_action: z
+				.string()
+				.describe('The action the subject is performing. Must be relevant to the scene and expressive.'),
+		}),
+	}),
+});
+
+const finalSchema = z.object({
+	step1: analysisSchema.describe('The analysis of the user input.'),
+	step2: sceneSchema.describe('The avatar and scene generated based on the analysis.'),
+});
+
 const isAdminOrBroadcaster = (userName: string, broadcasterName: string): boolean => {
 	const lowerUserName = userName.toLowerCase();
 	const lowerBroadcasterName = broadcasterName.toLowerCase();
@@ -125,64 +191,7 @@ async function generateImage(
 ): Promise<ImageGenerationResult> {
 	const uniqueId = nanoid(14);
 
-	const userMeaning = getUserMeaning(username.toLowerCase());
-	const queryMessage =
-		userMeaning !== username
-			? `Literal username: ${userDisplayName}\nIntended meaning: ${userMeaning}`
-			: `Username: ${userDisplayName}`;
-
-	const queryAnalzerPrompt = analyzerPrompt.replace('__DATE__', new Date().toISOString().slice(0, 10));
-	const analysisMessages: OpenAI.ChatCompletionMessageParam[] = [
-		{
-			role: 'system',
-			content: queryAnalzerPrompt,
-		},
-		{
-			role: 'user',
-			content: queryMessage,
-		},
-	];
-
-	let analysisResult = await openaiThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Analysing text: ${userDisplayName} / ${userMeaning}`);
-		return openAIManager.getChatCompletion(analysisMessages, 700);
-	});
-
-	/*
-	 * If the analysis doesn't end in a period, the next LLM prompt may not be generated correctly as
-	 * it tries to continue the sentence. This is a workaround to ensure the analysis ends in a period.
-	 *
-	 * Another solution would be by changing the way we provide the analysis result to the LLM.
-	 *
-	 */
-	if (!analysisResult.endsWith('.')) {
-		analysisResult += '.';
-	}
-
-	if (theme) {
-		console.log(`[${uniqueId}]`, userMeaning, `Original analysis: ${analysisResult}`);
-
-		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
-			{
-				role: 'system',
-				content: themePrompt.replace('__THEME__', theme),
-			},
-			{
-				role: 'user',
-				content: analysisResult,
-			},
-		];
-		analysisResult = await openaiThrottle(() => {
-			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
-			return openAIManager.getChatCompletion(themeMessages, 700);
-		});
-
-		console.log(`[${uniqueId}]`, userMeaning, `New analysis: ${analysisResult}`);
-	}
-
-	analysisResult = `- Literal username: ${userDisplayName}\n${analysisResult}`;
-
-	let template;
+	let template: DalleTemplate | undefined;
 	if (style) {
 		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style!.toLowerCase());
 	}
@@ -191,38 +200,104 @@ async function generateImage(
 		template = dalleTemplates[templateIndex] as DalleTemplate;
 		style = template.keyword.toLowerCase();
 	}
-	const queryScenarioPrompt = scenarioPrompt
-		.replace('__STYLE_NAME__', template.name)
-		.replace('__STYLE_TEMPLATE__', template.value);
+
+	const userMeaning = getUserMeaning(username.toLowerCase());
+	const queryMessage =
+		userMeaning !== username
+			? `Literal username: ${userDisplayName}\nIntended meaning: ${userMeaning}`
+			: `Username: ${userDisplayName}`;
 
 	console.log(`[${uniqueId}]`, userMeaning, `Using template: ${template.name}`);
-	console.log(`[${uniqueId}]`, userMeaning, `Analysed text: ${analysisResult}`);
 
-	const sentenceResult = await openaiThrottle(() => {
-		const generatePromptMessages: OpenAI.ChatCompletionMessageParam[] = [
+	// Now do another request but using structured output from OpenAI
+	const structuredAnalysisMessages: OpenAI.ChatCompletionMessageParam[] = [
+		{
+			role: 'system',
+			content: structuredOutputPrompt
+				.replace('__DATE__', new Date().toISOString().slice(0, 10))
+				.replace('__STYLE_NAME__', template.name),
+		},
+		{
+			role: 'user',
+			content: queryMessage,
+		},
+	];
+
+	let structuredOutput = await openaiThrottle(() => {
+		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output`);
+		return openAIManager.getChatCompletion(structuredAnalysisMessages, {
+			length: 1536,
+			schema: finalSchema,
+			schemaName: 'finalSchema',
+		});
+	});
+
+	if (theme) {
+		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
-				content: queryScenarioPrompt,
+				content: themePrompt.replace('__THEME__', theme),
 			},
 			{
 				role: 'user',
-				content: analysisResult,
+				content: JSON.stringify(structuredOutput),
 			},
 		];
-		return openAIManager.getChatCompletion(generatePromptMessages, 400);
-	});
+		structuredOutput = await openaiThrottle(() => {
+			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
+			return openAIManager.getChatCompletion(themeMessages, {
+				length: 1536,
+				schema: finalSchema,
+				schemaName: 'finalSchema',
+			});
+		});
 
-	console.log(`[${uniqueId}]`, userMeaning, `Generated sentence: ${sentenceResult}`);
+		console.log(`[${uniqueId}]`, userMeaning, `New analysis:`, structuredOutput);
+	}
 
-	const imagePrompt = `I NEED to test how the tool works with extremely simple prompts. DO NOT add any detail, just use it AS-IS. You MAY NOT change the prompt whatsoever: ${sentenceResult}`;
+	const analysisResult = `Literal username: ${userDisplayName}\n${structuredOutput}`;
 
-	const imagePromptSingleLine = imagePrompt.replace(/\n/g, '');
+	Object.assign(structuredOutput.step2, { style: template.description });
+	Object.assign(structuredOutput.step2, { style_description: template.name });
+
+	const imagePrompt = JSON.stringify(structuredOutput.step2);
 
 	const image = await dalleThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Creating image: ${imagePromptSingleLine}`);
+		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
 			model: 'dall-e-3',
-			prompt: imagePrompt,
+			prompt: `Create a prompt using the following guidelines:
+
+Begin with a CONCRETE artistic medium or style. The opening must name a specific type of artwork. For example:
+- "Oil painting of..."
+- "A watercolor painting of..."
+- "16-bit pixel art of..."
+- "Byzantine illustration of..."
+- "Charcoal drawing of..."
+- "Sketch drawing of..."
+
+These are just examples. You will use any specific art style or medium that fits the passed data and style description.
+
+AVOID:
+- Abstract descriptors ("dream-like", "soft-focus")
+- Impossible concepts ("animated drawing")
+- Vague terms ("digital art", "artwork")
+- Emotional descriptors ("whimsical", "playful")
+- Style qualifiers ("style portrayal of", "depiction of")
+- Human terms
+
+ALWAYS start with the specific art medium/style, then refer to the avatar strictly as 'a cute BLUE round-faced avatar', immediately followed by incorporating the banner with text . The rest of the scene description should flow naturally afterward.
+
+ALWAYS refer to the avatar as 'a cute BLUE round-faced avatar'.
+
+IMPORTANT: 
+- Never mention ears or tails in the description
+- Keep the style introduction concrete and specific to 
+
+End the prompt by reinforcing the style's natural qualities through evocative language. Draw from the "style description" to reinforce key artistic characteristics (e.g., textures, color schemes, or visual features).
+
+Data:
+${imagePrompt}`,
 			quality: 'standard',
 			size: '1024x1024',
 			response_format: 'url',
@@ -600,8 +675,6 @@ async function main() {
 						return;
 					}
 
-					// is the nullish coalescing operator really necessary here? if no style was provided, it would be undefined, not null. both falsy, but still...
-					// i want the intent to be clear, so i'll leave it in for now
 					const specifiedStyle = params[1] ?? null;
 
 					let imageResult: ImageGenerationResult;
@@ -910,34 +983,66 @@ const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
 type DalleTemplate = {
 	name: string;
 	keyword: string;
-	value: string;
+	description: string;
 };
 
-const analyzerPrompt = `Today is __DATE__.
+const structuredOutputPrompt = `Today is __DATE__.
 
-You are an expert in interpreting usernames and creating avatar descriptions. I will provide you with a username, and I'd like you to answer the following questions:
-   
-1. Interpretation: What is the literal interpretation of this username? It may involve wordplay, puns, direct meanings, or cultural references.
-2. Themes / Ideas: What themes or ideas does this username convey?
-3. Description: How would you describe an avatar that represents this username?
-3.1. Facial expression: What facial expression would best suit this avatar?
-3.2. Posture: What posture or stance would best reflect the username's themes or ideas?
-3.3. Outfit: What kind of outfit would directly connect to the username's key themes or ideas? Bias towards an orange hoodie unless another outfit more vividly reflects the username.
-3.4. Accessories / Features: What unique accessories or features would enhance the avatar's connection to the username?
-4. Scene / Background: What kind of scene or background would best complement this avatar? Consider the setting, mood, and overall atmosphere.
-5. Banner: Incorporate the literal username into the scene in a creative and engaging way. The literal username MUST be included in quotes and the text must be visually appealing.
+You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a detailed creative analysis, followed by a structured data format of that same analysis.
+
+PART 1 - CREATIVE ANALYSIS
+Create a detailed, flowing narrative analysis following these elements:
+
+1. Reason through the necessary steps to interpret the username thoroughly and creatively
+2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)
+
+PART 2 - STRUCTURED FORMAT
+Following the analysis, provide a structured breakdown of all elements:
+
+1. Avatar Details
+   - Facial expression
+   - Posture
+   - Looks: ALWAYS use "A cute blue round-faced avatar with blue skin" here
+   - Clothing (bias towards an orange hoodie unless thematically inappropriate)
+   - Accessories
+
+2. Style and Lighting
+   - Overall style
+   - Lighting specifications
+
+3. Objects in Scene (username banner with font details, additional items)
+   - Banner details
+     - Content (must ALWAYS be the username in quotes), additional text must go into "Additional objects"
+     - Font style
+     - Mood treatment
+   - Additional objects (relevant to the username)
+     - Types
+     - Positions
+     - Attributes
+
+4. Scene Elements
+   - Setting
+   - Mood
+   - Atmosphere
+   - Background
+   - Narrative (plot and avatar actions)
+     - Plot points
+     - Avatar actions
 
 Guidelines:
-- Create an engaging and immersive scene that resonates with the username's themes or ideas.
-- Create a plot or narrative that involves this avatar.
-- Imagine what the avatar might be doing or experiencing in the scene.
-- Be brave, creative, provocative, literal, humorous and original in your interpretations. 
-- Avoid mentioning ears, tails, or other animalistic features unless directly relevant to the username or its interpretation.
-- Avoid mentioning hair or other physical attributes that are not explicitly part of the username or its interpretation.
+- Be creative, degenerate, exaggerating and absurd in your scenes - aim to create humor through scene and actions
+- Avoid ears, tails, or animal features unless username-relevant
+- Avoid hair/physical attributes unless username-connected
+- Be brave, provocative, literal, and original
+- Examples of desired tone:
+  - Username "diarrhea" turns to a bathroom scene with brown-stained walls, overflowing chocolate pudding toilet
+  - Username "vasectomy" turns into an avatar with a doctor holding a chainsaw, fleeing patient, "Vasectomy - No refunds" sign
+  - Username "breastmilk" turns into self-milking cow, baby with milk mustache, "Got Milk?" sign
+  - Username "littlesp00n" turns into an avatar in bed, giant spoon cuddling next to it, "little spoon" sign
 
-Start with the answers to the questions right away and skip any preamble. Avoid formatting and answer in plaintext.`;
+Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
 
-const themePrompt = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username and a detailed avatar description. Your task is to boldly infuse these elements with a given theme, creating a vivid and immersive thematic experience.
+const themePrompt = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username, a detailed avatar and scene description. Your task is to boldly infuse these elements with a given theme, while maintaining the core identity of the original interpretation.
 
 Today's theme:
 __THEME__
@@ -945,135 +1050,105 @@ __THEME__
 Guidelines:
 1. Make the theme a central and unmistakable element of the adaptation.
 2. Keep the original username AS-IS and unchanged.
-3. Maintain the essence of the original username interpretation, but feel free to add thematic elements.
+3. Maintain the essence of the original username interpretation.
 4. Adapt the avatar's descriptions to incorporate the theme, while preserving its core identity.
+4.1. For example - if the username was "Panzerfaust" and the original scene had a Panzerfaust weapon, it should still be present in the scene after adaptation.
 5. Transform the scene, background, and environment to fully embody the theme.
-6. If the theme strongly contradicts the original interpretation, create a compelling narrative that bridges this gap.
-7. Keep the original structure of the provided information intact, focusing on the theme's integration.
+
+Use the provided theme to write out reasoning steps in order to adapt the avatar and scene to the theme. 
 
 Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip the original analysis in your response.`;
 
-const scenarioPrompt = `I'll provide a template enclosed in triple quotes. Populate the bracketed placeholders in the template with creative details derived from the provided information, using clear and direct language. Focus on key elements of the username and skip redundant phrases. Use precise and targeted language. Clearly convey the placement and role of specific objects in relation to the scene.
-
-Replace the placeholders strictly with the relevant information, without introducing any additional formatting or making changes to the template's structure. If a placeholder doesn't have a direct correspondence with the provided information, use your best judgment to fill it in while staying true to the overall theme and style.
-
-The rest of the template, including the original wording, base prompt, and the image style defined as __STYLE_NAME__, must remain unchanged.
-
-Template:
-__STYLE_TEMPLATE__
-
-Instructions:
-- Fill in each placeholder with clear, direct language that resonates with the overall theme and style indicated.
-- Only replace the text within the brackets []. Do not alter the template's wording or structure.
-- Provide a response suitable for immediate use, reflecting the specified style and theme.
-- Quotes may be placed around the literal username only.
-- Avoid newlines. Keep the text in a single paragraph.
-- Make sure the final text is concise and fits within 150 words.
-
-Provide only the processed text, skipping any preamble or explanations.`;
-
 const dalleTemplates: DalleTemplate[] = [
 	{
-		name: 'illustration',
-		keyword: 'illustration',
-		value:
-			'Illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The scene is set in [avatar scene and environment, including feeling and mood].',
+		name: 'oil painting',
+		keyword: 'oil',
+		description:
+			'Emphasizing rich, textured brush strokes and dramatic lighting, invoking the feel of traditional oil painting.',
 	},
 	{
 		name: 'watercolor',
 		keyword: 'watercolor',
-		value:
-			'Watercolor painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The soft, fluid background depicts [avatar scene and environment, including feeling and mood].',
+		description:
+			'Soft, fluid backgrounds with gentle transitions and delicate washes, creating an ethereal and dreamy atmosphere.',
 	},
 	{
 		name: 'pixel art',
 		keyword: 'pixel',
-		value:
-			'16 bit blocky and crisp pixel art featuring a cute BLUE round-faced character, with blue skin. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique] The [avatar scene and environment, including feeling and mood]. [banner]',
+		description: 'Blocky and crisp with sharp lines and vibrant colors, evoking a retro, 16-bit pixel art style.',
 	},
 	{
-		name: 'oil painting',
-		keyword: 'oil',
-		value:
-			'Oil painting of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The rich and textured background depicts [avatar scene and environment, including feeling and mood].',
-	},
-	{
-		name: 'flat',
-		keyword: 'flat',
-		value:
-			'Flat design illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The simplistic background features bold colors and [avatar scene and environment, including feeling and mood].',
-	},
-	{
-		name: 'glitch art',
+		name: 'glitch art illustration',
 		keyword: 'glitch',
-		value:
-			'Glitch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment, including feeling and mood] with vibrant glitches.',
+		description:
+			'Vibrant neon colors with jagged distortions and digital artifacts, creating a chaotic and futuristic atmosphere.',
 	},
 	{
-		name: 'Byzantine art',
-		keyword: 'byzantine',
-		value:
-			'Byzantine-inspired illustration of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The golden, vibrant background depicts [avatar scene and environment, including feeling and mood].',
-	},
-	{
-		name: 'expressionism',
-		keyword: 'expressionism',
-		value:
-			'Expressionist drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The background features [avatar scene and environment, including feeling and mood].',
-	},
-	{
-		name: 'charcoal',
-		keyword: 'charcoal',
-		value:
-			'Charcoal drawing of a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The background depicts [avatar scene and environment, including feeling and mood].',
-	},
-	{
-		name: 'neon graffiti',
+		name: 'neon graffiti illustration',
 		keyword: 'neon',
-		value:
-			'Illustration of a neon graffiti scene featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop showcases [avatar scene and environment, including feeling and mood].',
+		description:
+			'Bright colors and bold outlines, capturing the energy of neon street art with a sense of urban vibrancy.',
 	},
 	{
-		name: 'vintage manga',
+		name: 'Byzantine art illustration',
+		keyword: 'byzantine',
+		description:
+			'Flat, golden backgrounds and stylized forms, reminiscent of the opulence and symbolism of Byzantine icons.',
+	},
+	{
+		name: 'expressionism drawing',
+		keyword: 'expressionism',
+		description:
+			'Bold, exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
+	},
+	{
+		name: 'charcoal drawing',
+		keyword: 'charcoal',
+		description:
+			'Monochromatic shading with rough, textured lines, emphasizing stark contrasts and sketch-like detail.',
+	},
+	// {
+	// 	name: 'minimalist pixel art',
+	// 	keyword: 'minimalistpixel',
+	// 	description: 'Clean, geometric shapes with minimal color palettes, emphasizing simplicity in a pixel art style.',
+	// },
+	{
+		name: 'manga illustration',
 		keyword: 'vintagemanga',
-		value:
-			'1980s vintage manga still frame depicting a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The backdrop features [avatar scene and environment, including feeling and mood] with cell shading, capturing a grainy and vintage look with overlapping visual channels.',
+		description:
+			'1980s manga style with grainy textures and subtle color gradations, capturing a nostalgic, cell-shaded look.',
 	},
 	{
-		name: 'Rumiko Takahashi style',
+		name: 'Bold lines drawing with vivid colors',
 		keyword: 'takahashi',
-		value:
-			'Illustration reminiscent of exaggeration, bold lines, and vivid colors featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The grainy, surreal background depicts [avatar scene and environment, including feeling and mood] with vintage anime elements.',
+		description:
+			'Exaggerated expressions, bold lines, and vivid colors evoking the playful and dynamic style of 1980s anime.',
 	},
 	{
-		name: 'Yoshiyuki Sadamoto style',
+		name: 'Detailed line work drawing',
 		keyword: 'sadamoto',
-		value:
-			'Dystopian and mysterious illustration in the style of Sadamoto, featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The dystopian and surreal background showcases [avatar scene and environment, including feeling and mood] with grainy textures and vintage aesthetics.',
+		description:
+			'Detailed line work, subdued color palettes, and melancholic atmospheres, reflecting a moody and introspective style.',
 	},
 	{
-		name: 'minimalist pixel art',
-		keyword: 'minimalistpixel',
-		value:
-			'Minimalist pixel art scene featuring a simplified cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture]. [avatar physique]. The clean, geometric background depicts [avatar scene and environment, including feeling and mood].',
+		name: 'fauvism painting',
+		keyword: 'fauvism',
+		description: 'Bold, vibrant colors with expressive brushstrokes, emphasizing abstraction and emotional intensity.',
 	},
 	{
-		name: 'pixel art portrait',
-		keyword: 'pixelportrait',
-		value:
-			'Pixel art portrait focusing on a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The detailed, close-up background showcases [avatar scene and environment, including feeling and mood].',
+		name: 'flat design illustration',
+		keyword: 'flat',
+		description: 'Simplified shapes and bold colors, creating a clean and modern flat design aesthetic.',
 	},
 	{
 		name: 'sketch art',
 		keyword: 'sketch',
-		value:
-			'Detailed sketch art illustration featuring a cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The sketchy background depicts [avatar scene and environment, including feeling and mood].',
+		description: 'Loose, rough lines with an emphasis on expressive, hand-drawn quality and organic textures.',
 	},
 	{
-		name: 'fauvism art',
-		keyword: 'fauvism',
-		value:
-			'Fauvism-inspired painting of a vibrant cute BLUE round-faced character, with blue skin. [banner]. [avatar outfit][avatar actions][avatar facial expression][avatar posture][avatar physique]. The bold, colorful background showcases [avatar scene and environment, including feeling and mood].',
+		name: '90s anime illustration',
+		keyword: 'anime',
+		description: 'Include subtitles using the banner text, aka the subtitles read...',
 	},
 ];
 
