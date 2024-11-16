@@ -1113,10 +1113,10 @@ const dalleTemplates: DalleTemplate[] = [
 	// 	description: 'Clean, geometric shapes with minimal color palettes, emphasizing simplicity in a pixel art style.',
 	// },
 	{
-		name: 'manga illustration',
-		keyword: 'vintagemanga',
+		name: 'japanese illustration',
+		keyword: 'japanese_illustration',
 		description:
-			'1980s manga style with grainy textures and subtle color gradations, capturing a nostalgic, cell-shaded look.',
+			'Japanese illustration style inspired by nostalgic, gentle aesthetics. Soft and smooth, minimalist lines and subtle gradients create a calm, approachable atmosphere. Pastel-like tones.',
 	},
 	{
 		name: 'Bold lines drawing with vivid colors',
@@ -1144,11 +1144,6 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'sketch art',
 		keyword: 'sketch',
 		description: 'Loose, rough lines with an emphasis on expressive, hand-drawn quality and organic textures.',
-	},
-	{
-		name: '90s anime illustration',
-		keyword: 'anime',
-		description: 'Include subtitles using the banner text, aka the subtitles read...',
 	},
 ];
 
