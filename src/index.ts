@@ -105,10 +105,10 @@ const sceneSchema = z.object({
 		banner: z
 			.object({
 				content: z.string(),
-				font_style: z.string(),
-				font_mood: z.string(),
+				style: z.string(),
+				mood: z.string(),
 			})
-			.describe('A way to show the username in the scene'),
+			.describe('A way to show the literal username in the scene'),
 		additional_objects: z
 			.array(
 				z.object({
@@ -129,7 +129,7 @@ const sceneSchema = z.object({
 			plot: z.string(),
 			subject_action: z
 				.string()
-				.describe('The action the subject is performing. Must be relevant to the scene and expressive.'),
+				.describe('The action the avatar is performing. Must be relevant to the scene and expressive.'),
 		}),
 	}),
 });
