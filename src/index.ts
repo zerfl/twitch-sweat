@@ -226,7 +226,7 @@ async function generateImage(
 	let structuredOutput = await openaiThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output`);
 		return openAIManager.getChatCompletion(structuredAnalysisMessages, {
-			length: 1536,
+			length: 1000,
 			schema: finalSchema,
 			schemaName: 'finalSchema',
 		});
@@ -246,7 +246,7 @@ async function generateImage(
 		structuredOutput = await openaiThrottle(() => {
 			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
 			return openAIManager.getChatCompletion(themeMessages, {
-				length: 1536,
+				length: 1000,
 				schema: finalSchema,
 				schemaName: 'finalSchema',
 			});
