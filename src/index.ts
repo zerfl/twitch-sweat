@@ -873,32 +873,6 @@ async function main() {
 						);
 					});
 				}),
-				createBotCommand(
-					'event',
-					async (_params, { userName, say }) => {
-						const targetTimestamp = 1731814200;
-						const currentTimestamp = Math.floor(Date.now() / 1000);
-
-						if (currentTimestamp >= targetTimestamp) {
-							return;
-						}
-
-						const remainingSeconds = targetTimestamp - currentTimestamp;
-						const hours = Math.floor(remainingSeconds / 3600);
-						const minutes = Math.ceil((remainingSeconds % 3600) / 60);
-
-						let output = `@${userName} Noita 2200 win event in `;
-						if (hours > 0) {
-							output += `${hours}h${minutes}m`;
-						} else {
-							output += `${minutes}m`;
-						}
-						await messagesThrottle(() => {
-							return say(output);
-						});
-					},
-					{ globalCooldown: 60 },
-				),
 			],
 		});
 
