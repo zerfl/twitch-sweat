@@ -266,35 +266,24 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
 			model: 'dall-e-3',
-			prompt: `Create a prompt using the following guidelines:
+			prompt: `Create a prompt using the following rules:
 
-Begin with a CONCRETE artistic medium or style. The opening must name a specific type of artwork. For example:
-- "Oil painting of..."
-- "A watercolor painting of..."
-- "16-bit pixel art of..."
-- "Byzantine illustration of..."
-- "Charcoal drawing of..."
-- "Sketch drawing of..."
+Start with the specific art medium/style from the JSON data. Use the EXACT STYLE provided and phrase the beginning NATURALLY to match it. For example:
+- For watercolor: "A watercolor painting of..."
+- For pixel art: "16-bit pixel art of..."
+- For charcoal: "A charcoal drawing of..."
 
-These are just examples. You will use any specific art style or medium that fits the passed data and style description.
+These are just examples. ALWAYS begin with the style specified in the JSON.
 
-AVOID:
-- Abstract descriptors ("dream-like", "soft-focus")
-- Impossible concepts ("animated drawing")
-- Vague terms ("digital art", "artwork")
-- Emotional descriptors ("whimsical", "playful")
-- Style qualifiers ("style portrayal of", "depiction of")
-- Human terms
+[IMPORTANT RULES]
+1. Use the phrase "a cute BLUE round-faced avatar with blue skin" EXACTLY as written. DO NOT MODIFY IT.
+2. Follow IMMEDIATELY with a username banner.
+3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
+4. Reinforce the chosen style’s NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
 
-ALWAYS start with the specific art medium/style, then refer to the avatar strictly as 'a cute BLUE round-faced avatar', immediately followed by incorporating the banner with text . The rest of the scene description should flow naturally afterward.
-
-ALWAYS refer to the avatar as 'a cute BLUE round-faced avatar'.
-
-IMPORTANT: 
-- Never mention ears or tails in the description
-- Keep the style introduction concrete and specific to 
-
-End the prompt by reinforcing the style's natural qualities through evocative language. Draw from the "style description" to reinforce key artistic characteristics (e.g., textures, color schemes, or visual features).
+[NOTES]
+- The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN’T explicitly provided or implied.
+- AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
 
 Data:
 ${imagePrompt}`,
@@ -422,6 +411,7 @@ async function handleEventAndSendImageMessage(
 		});
 		return;
 	}
+
 	await storeImageData(broadcasterName, userName, {
 		image: imageResult.message,
 		analysis: imageResult.analysis,
@@ -1055,6 +1045,14 @@ Following the analysis, provide a structured breakdown of all elements:
      - Plot points
      - Avatar actions
 
+[COPYRIGHT-SAFE GUIDELINES]
+- DO NOT directly reference specific copyrighted properties (e.g., "Dragon Ball," "Naruto").
+- INSTEAD, describe general themes, genres, or tropes related to the idea. Examples:
+  - "Super Saiyan" is fine, but avoid saying "Dragon Ball." Use "an epic anime transformation" or "legendary anime battle heroes" instead.
+  - Replace "Dragon Balls" with "mystical glowing orbs," "legendary spheres of power," or "energy relics."
+  - Replace "Dragon Ball battleground" with "an epic battlefield in an anime-inspired setting."
+- Be CREATIVE and HUMOROUS in delivering these tropes while ensuring they DO NOT name or overly describe specific copyrighted works.
+
 Guidelines:
 - Be creative, degenerate, exaggerating and absurd in your scenes - aim to create humor through scene and actions
 - Avoid ears, tails, or animal features unless username-relevant
@@ -1065,6 +1063,7 @@ Guidelines:
   - Username "vasectomy" turns into an avatar with a doctor holding a chainsaw, fleeing patient, "Vasectomy - No refunds" sign
   - Username "breastmilk" turns into self-milking cow, baby with milk mustache, "Got Milk?" sign
   - Username "littlesp00n" turns into an avatar in bed, giant spoon cuddling next to it, "little spoon" sign
+  - Username "goku_super_sayan04" becomes a playful homage to anime battle tropes, featuring glowing orbs and an energetic transformation scene.
 
 Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
 
