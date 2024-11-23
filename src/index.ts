@@ -279,10 +279,10 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 1. Use the phrase "a cute BLUE round-faced avatar with blue skin" EXACTLY as written. DO NOT MODIFY IT.
 2. Follow IMMEDIATELY with a username banner.
 3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
-4. Reinforce the chosen style’s NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
+4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
 
 [NOTES]
-- The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN’T explicitly provided or implied.
+- The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
 - AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
 
 Data:
@@ -423,7 +423,17 @@ async function handleEventAndSendImageMessage(
 		const channel = discordBot.channels.cache.get(channelId);
 		if (channel && channel.isTextBased()) {
 			try {
-				await channel.send(`Thank you \`${userName}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
+				// await channel.send(`Thank you \`${userName}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
+
+				// const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				// 	new ButtonBuilder().setCustomId('primary').setLabel('Click Me!').setStyle(ButtonStyle.Primary),
+				// 	new ButtonBuilder().setLabel('Visit Website').setStyle(ButtonStyle.Link).setURL('https://discord.js.org/'),
+				// );
+
+				await channel.send({
+					content: `Thank you \`${userName}\` for ${verb}. Here's your sweatling: ${imageResult.message}`,
+					// components: [row],
+				});
 			} catch (error) {
 				console.log(`Error sending message to channel ${channelId}`, error);
 			}
@@ -515,6 +525,13 @@ async function main() {
 				],
 				status: 'online',
 			},
+		});
+
+		discordBot.on(Events.InteractionCreate, async (interaction) => {
+			if (!interaction.isButton()) return;
+			if (interaction.customId === 'primary') {
+				await interaction.reply(`Button clicked: ${interaction.user.displayName}`);
+			}
 		});
 
 		discordBot.on(Events.ClientReady, async () => {
@@ -717,9 +734,18 @@ async function main() {
 						const channel = discordBot.channels.cache.get(channelId);
 						if (channel && channel.isTextBased()) {
 							try {
-								await channel.send(
-									`@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
-								);
+								// const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+								// 	new ButtonBuilder().setCustomId('primary').setLabel('Click Me!').setStyle(ButtonStyle.Primary),
+								// 	new ButtonBuilder()
+								// 		.setLabel('Visit Website')
+								// 		.setStyle(ButtonStyle.Link)
+								// 		.setURL('https://discord.js.org/'),
+								// );
+
+								await channel.send({
+									content: `@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
+									// components: [row],
+								});
 							} catch (error) {
 								console.log(`Error sending message to channel ${channelId}`, error);
 							}
@@ -1149,7 +1175,7 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'Romanticism landscape painting',
 		keyword: 'romanticism',
 		description:
-			"Sweeping, emotional landscapes with bold, atmospheric effects. Romanticism emphasizes the sublime, portraying nature’s grandeur and humanity's smallness. Dynamic skies, rugged mountains, and turbulent seas dominate, using rich, textured brushstrokes to create epic, evocative scenery.",
+			"Sweeping, emotional landscapes with bold, atmospheric effects. Romanticism emphasizes the sublime, portraying nature's grandeur and humanity's smallness. Dynamic skies, rugged mountains, and turbulent seas dominate, using rich, textured brushstrokes to create epic, evocative scenery.",
 	},
 	{
 		name: 'Art Nouveau stained glass',
