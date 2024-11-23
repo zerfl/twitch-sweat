@@ -1095,7 +1095,7 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'watercolor',
 		keyword: 'watercolor',
 		description:
-			'Soft, fluid backgrounds with gentle transitions and delicate washes, creating an ethereal and dreamy atmosphere.',
+			'Soft, fluid backgrounds with gentle transitions and delicate washes, creating an ethereal and dreamy atmosphere. Subtle textures emphasize organic imperfections.',
 	},
 	{
 		name: 'pixel art',
@@ -1112,13 +1112,13 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'neon graffiti illustration',
 		keyword: 'neon',
 		description:
-			'Bright colors and bold outlines, capturing the energy of neon street art with a sense of urban vibrancy.',
+			'Bright, glowing colors and bold, jagged outlines capture the energy of neon street art, blending urban grit with vivid vibrancy. Layered textures of paint drips and spray patterns evoke a dynamic, rebellious spirit.',
 	},
 	{
 		name: 'Byzantine art illustration',
 		keyword: 'byzantine',
 		description:
-			'Flat, golden backgrounds and stylized forms, reminiscent of the opulence and symbolism of Byzantine icons.',
+			'Flat, gilded backgrounds and highly stylized, geometric forms evoke the opulence and sacred symbolism of Byzantine art. Intricate patterns and jewel-like color contrasts add richness and reverence to the scene.',
 	},
 	{
 		name: 'expressionism drawing',
@@ -1132,16 +1132,11 @@ const dalleTemplates: DalleTemplate[] = [
 		description:
 			'Monochromatic shading with rough, textured lines, emphasizing stark contrasts and sketch-like detail.',
 	},
-	// {
-	// 	name: 'minimalist pixel art',
-	// 	keyword: 'minimalistpixel',
-	// 	description: 'Clean, geometric shapes with minimal color palettes, emphasizing simplicity in a pixel art style.',
-	// },
 	{
-		name: 'japanese illustration',
-		keyword: 'japanese_illustration',
+		name: 'Delicate pastel illustration',
+		keyword: 'pastel_illustration',
 		description:
-			'Japanese illustration style inspired by nostalgic, gentle aesthetics. Soft and smooth, minimalist lines and subtle gradients create a calm, approachable atmosphere. Pastel-like tones.',
+			'A delicate and soft illustration style inspired by nostalgic Japanese aesthetics. This style features minimalist lines, subtle gradients, and pastel-like tones, evoking a calm, approachable atmosphere. The artwork avoids anime tropes and emphasizes unique, playful elements, such as distinct features like blue skin, while retaining a cozy and charming aesthetic.',
 	},
 	{
 		name: 'Bold lines drawing with vivid colors',
@@ -1169,6 +1164,30 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'sketch art',
 		keyword: 'sketch',
 		description: 'Loose, rough lines with an emphasis on expressive, hand-drawn quality and organic textures.',
+	},
+	{
+		name: 'Baroque oil painting',
+		keyword: 'baroque',
+		description:
+			'Dramatic compositions with rich, textured brushstrokes and dynamic lighting, emphasizing grandeur and emotional intensity. Elaborate details and strong contrasts between light and shadow evoke the opulence and theatricality of Baroque art, perfect for epic, storytelling scenes.',
+	},
+	{
+		name: 'Romanticism landscape painting',
+		keyword: 'romanticism',
+		description:
+			"Sweeping, emotional landscapes with bold, atmospheric effects. Romanticism emphasizes the sublime, portraying nature’s grandeur and humanity's smallness. Dynamic skies, rugged mountains, and turbulent seas dominate, using rich, textured brushstrokes to create epic, evocative scenery.",
+	},
+	{
+		name: 'Art Nouveau stained glass',
+		keyword: 'art_nouveau',
+		description:
+			'Intricate stained glass designs featuring organic, flowing shapes and elegant curves. Vibrant jewel tones and radiant light effects create a sense of ethereal beauty and epic storytelling, reminiscent of grand cathedrals and elaborate decorative art.',
+	},
+	{
+		name: 'Classical fresco painting',
+		keyword: 'fresco',
+		description:
+			'Monumental wall paintings with sweeping compositions, depicting grand mythological or historical narratives. Fresco art captures timeless epic scenes with bold colors, dynamic figures, and architectural framing, evoking the majesty of ancient civilizations.',
 	},
 ];
 
