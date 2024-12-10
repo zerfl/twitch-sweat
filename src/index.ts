@@ -73,6 +73,7 @@ interface EventData {
 
 type UserMeaningMap = Map<string, string>;
 type BroadcasterThemeMap = Map<string, string>;
+type BroadcasterBannedGiftersMap = Map<string, string[]>;
 
 const analysisSchema = z.object({
 	reasoning: z.object({
@@ -508,6 +509,54 @@ function getUserMeaning(user: string) {
 	return userMeaningMap.get(user) || user;
 }
 
+async function loadBannedGifters(filePath: PathLike): Promise<void> {
+	try {
+		const data = await fs.readFile(filePath, 'utf-8');
+		const bannedGiftersData = JSON.parse(data) as Record<string, string[]>;
+		for (const [broadcaster, bannedGifters] of Object.entries(bannedGiftersData)) {
+			broadcasterBannedGiftersMap.set(
+				broadcaster.toLowerCase(),
+				bannedGifters.map((gifter) => gifter.toLowerCase()),
+			);
+		}
+	} catch (error) {
+		console.error(`Error reading banned gifters file at ${filePath}`, error);
+	}
+}
+
+async function addBannedGifter(broadcaster: string, gifter: string): Promise<void> {
+	const lowerBroadcaster = broadcaster.toLowerCase();
+	const lowerGifter = gifter.toLowerCase();
+	const bannedGifters: string[] = broadcasterBannedGiftersMap.get(lowerBroadcaster) || [];
+	if (!bannedGifters.includes(lowerGifter)) {
+		bannedGifters.push(lowerGifter);
+		broadcasterBannedGiftersMap.set(lowerBroadcaster, bannedGifters);
+	}
+}
+
+async function removeBannedGifter(broadcaster: string, gifter: string): Promise<boolean> {
+	const lowerBroadcaster = broadcaster.toLowerCase();
+	const lowerGifter = gifter.toLowerCase();
+	const bannedGifters: string[] = broadcasterBannedGiftersMap.get(lowerBroadcaster) || [];
+	const index = bannedGifters.indexOf(lowerGifter);
+	if (index > -1) {
+		bannedGifters.splice(index, 1);
+		broadcasterBannedGiftersMap.set(lowerBroadcaster, bannedGifters);
+		return true;
+	}
+	return false;
+}
+
+async function saveBannedGifters(filePath: PathLike): Promise<void> {
+	const bannedGiftersData = Object.fromEntries(broadcasterBannedGiftersMap);
+	await fs.writeFile(filePath, JSON.stringify(bannedGiftersData, null, 4), 'utf-8');
+}
+
+function isGifterBanned(broadcaster: string, gifter: string): boolean {
+	const bannedGifters = broadcasterBannedGiftersMap.get(broadcaster.toLowerCase()) || [];
+	return bannedGifters.includes(gifter.toLowerCase());
+}
+
 const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(0, n - 1)}...` : str);
 
 async function main() {
@@ -870,6 +919,48 @@ async function main() {
 						return say(`@${userName} You will now receive AI sweatlings`);
 					});
 				}),
+				createBotCommand('bangifter', async (params, { userName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
+
+					if (params.length !== 1) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a username.`);
+						});
+						return;
+					}
+
+					const gifter = params[0];
+					await addBannedGifter(broadcasterName, gifter);
+					await saveBannedGifters(bannedGiftersFilePath);
+
+					await messagesThrottle(() => {
+						return say(`@${userName} Gifter ${gifter} banned. Sub gifts from this user will be ignored.`);
+					});
+				}),
+				createBotCommand('unbangifter', async (params, { userName, broadcasterName, say }) => {
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
+
+					if (params.length !== 1) {
+						await messagesThrottle(() => {
+							return say(`@${userName} Please provide a username.`);
+						});
+						return;
+					}
+
+					const gifter = params[0];
+					const wasRemoved = await removeBannedGifter(broadcasterName, gifter);
+					await saveBannedGifters(bannedGiftersFilePath);
+
+					await messagesThrottle(() => {
+						if (wasRemoved) {
+							return say(`@${userName} Gifter ${gifter} unbanned.`);
+						}
+					});
+				}),
 				createBotCommand('ping', async (_params, { userName, say }) => {
 					if (userName.toLowerCase() !== 'partyhorst') return;
 
@@ -877,8 +968,10 @@ async function main() {
 						return say(`@${userName} pong`);
 					});
 				}),
-				createBotCommand('say', async (params, { say, userName }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
+				createBotCommand('say', async (params, { say, userName, broadcasterName }) => {
+					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+						return;
+					}
 					if (params.length === 0) return;
 
 					await messagesThrottle(() => {
@@ -947,6 +1040,14 @@ async function main() {
 		});
 		twitchBot.onCommunitySub(({ broadcasterName, gifterName, gifterDisplayName }) => {
 			console.log('onCommunitySub', broadcasterName, gifterName || 'anonymous', gifterDisplayName || 'Anonymous');
+
+			// If the gifter is banned (and not anonymous), don't generate an image for the gifter.
+			// We only generate an image for the gifter in this event, not for the recipients.
+			if (gifterName && isGifterBanned(broadcasterName, gifterName)) {
+				console.log(`Gifter ${gifterName} is banned for ${broadcasterName}, not generating image`);
+				return;
+			}
+
 			handleEventAndSendImageMessage(twitchBot, discordBot, {
 				broadcasterName,
 				userName: gifterName || 'Anonymous',
@@ -954,8 +1055,16 @@ async function main() {
 				isGifting: true,
 			});
 		});
-		twitchBot.onSubGift(({ broadcasterName, userName, userDisplayName }) => {
+		twitchBot.onSubGift(({ broadcasterName, userName, userDisplayName, gifterName }) => {
 			console.log('onSubGift', broadcasterName, userName, userDisplayName);
+
+			// Don't generate image for the recipient if:
+			// a) The gifter is anonymous, OR
+			// b) The gifter is banned.
+			if (!gifterName || isGifterBanned(broadcasterName, gifterName)) {
+				console.log(`Gifter ${gifterName || 'anonymous'} is banned for ${broadcasterName}, not generating image`);
+				return;
+			}
 			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 	} catch (error: unknown) {
@@ -976,6 +1085,7 @@ const imagesFilePath = path.join(appRootDir, 'data', 'images.json');
 const meaningsFilePath = path.join(appRootDir, 'data', 'meanings.json');
 const themeFilePath = path.join(appRootDir, 'data', 'themes.json');
 const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
+const bannedGiftersFilePath = path.join(appRootDir, 'data', 'bannedGifters.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
 const openAIManager = new OpenAIManager(
@@ -990,6 +1100,7 @@ const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
 const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
 const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
+const broadcasterBannedGiftersMap: BroadcasterBannedGiftersMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
 const openaiThrottle = throttledQueue(500, 60 * 1000, true);
@@ -1216,17 +1327,23 @@ try {
 		ensureFileExists(ignoreFilePath, JSON.stringify([])),
 		ensureFileExists(meaningsFilePath, JSON.stringify({})),
 		ensureFileExists(themeFilePath, JSON.stringify({})),
+		ensureFileExists(bannedGiftersFilePath, JSON.stringify({})),
 		ignoreListManager.loadIgnoreList(),
 	]);
 
 	await loadThemes(themeFilePath);
 	await loadMeanings(meaningsFilePath);
+	await loadBannedGifters(bannedGiftersFilePath);
 
 	console.log(`Using token file: ${tokenFilePath}`);
 	console.log(`Using images file: ${imagesFilePath}`);
 	console.log(`Using meanings file: ${meaningsFilePath}`);
 	console.log(`Using themes file: ${themeFilePath}`);
 	console.log(`Using ignore file: ${ignoreFilePath}`);
+	console.log(`Using banned gifters file: ${bannedGiftersFilePath}`);
+	for (const [broadcaster, bannedGifters] of broadcasterBannedGiftersMap) {
+		console.log(`Banned gifters for ${broadcaster}: ${bannedGifters.join(', ')}`);
+	}
 	console.log(`Using OpenAI model: ${process.env.OPENAI_MODEL}`);
 	console.log('Twitch admins:', Array.from(twitchAdmins).join(', '));
 
