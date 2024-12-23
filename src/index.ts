@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
-import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials } from 'discord.js';
+import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials, TextChannel } from 'discord.js';
 import throttledQueue from 'throttled-queue';
 import { IgnoreListManager } from './utils/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
@@ -399,7 +399,7 @@ async function handleEventAndSendImageMessage(
 
 	for (const channelId of discordChannels) {
 		const channel = discordBot.channels.cache.get(channelId);
-		if (channel && channel.isTextBased()) {
+		if (channel && channel.isTextBased() && channel.isSendable()) {
 			try {
 				// await channel.send(`Thank you \`${userName}\` for ${verb}. Here's your sweatling: ${imageResult.message}`);
 
@@ -597,7 +597,7 @@ async function main() {
 				await message.reply(`Announcing: ${announcement}`);
 				for (const channelId of discordChannels) {
 					const channel = discordBot.channels.cache.get(channelId);
-					if (channel && channel.isTextBased()) {
+					if (channel && channel.isTextBased() && channel.isSendable()) {
 						try {
 							await channel.send(announcement);
 						} catch (error) {
@@ -638,7 +638,7 @@ async function main() {
 
 					for (const channelId of discordChannels) {
 						const channel = discordBot.channels.cache.get(channelId);
-						if (channel && channel.isTextBased()) {
+						if (channel && channel.isTextBased() && channel.isSendable()) {
 							try {
 								await channel.send(
 									`Thank you \`${param}\` for subscribing. Here's your sweatling: ${imageResult.message}`,
@@ -758,7 +758,7 @@ async function main() {
 
 					for (const channelId of discordChannels) {
 						const channel = discordBot.channels.cache.get(channelId);
-						if (channel && channel.isTextBased()) {
+						if (channel && channel.isTextBased() && channel.isSendable()) {
 							try {
 								// const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
 								// 	new ButtonBuilder().setCustomId('primary').setLabel('Click Me!').setStyle(ButtonStyle.Primary),
