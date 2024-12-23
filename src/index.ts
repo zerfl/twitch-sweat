@@ -1265,13 +1265,55 @@ const dalleTemplates: DalleTemplate[] = [
 		name: 'Art Nouveau stained glass',
 		keyword: 'art_nouveau',
 		description:
-			'Intricate stained glass designs featuring organic, flowing shapes and elegant curves. Vibrant jewel tones and radiant light effects create a sense of ethereal beauty and epic storytelling, reminiscent of grand cathedrals and elaborate decorative art.',
+			'Elegant compositions with sweeping organic curves and flowing natural forms. Rich jewel tones blend with delicate patterns inspired by botanical motifs. Ornate decorative elements and graceful linework create an atmosphere of refined beauty and sophisticated grandeur.',
 	},
 	{
 		name: 'Classical fresco painting',
 		keyword: 'fresco',
 		description:
-			'Monumental wall paintings with sweeping compositions, depicting grand mythological or historical narratives. Fresco art captures timeless epic scenes with bold colors, dynamic figures, and architectural framing, evoking the majesty of ancient civilizations.',
+			'Monumental architectural scenes with soaring columns and vaulted ceilings, rendered in earthy pigments and soft matte textures characteristic of ancient wall paintings. Dramatic natural light streams through classical arches, illuminating weathered stone surfaces and creating depth through architectural perspective.',
+	},
+	{
+		name: 'Pointillism painting',
+		keyword: 'pointillism',
+		description:
+			'Vibrant scenes composed entirely of small, distinct dots of pure color, creating luminous optical effects and shimmering atmospheric light through careful dot placement.',
+	},
+	{
+		name: 'Art Deco illustration',
+		keyword: 'art_deco',
+		description:
+			'Bold geometric shapes and streamlined forms with metallic gold and silver accents. Symmetrical compositions featuring stepped forms and sunburst patterns create a sense of luxury and modern sophistication.',
+	},
+	{
+		name: 'Dutch Golden Age painting',
+		keyword: 'dutch_golden',
+		description:
+			'Rich dramatic lighting with deep shadows and luminous highlights. Meticulous attention to surface textures and material details creates an atmosphere of contemplative stillness.',
+	},
+	{
+		name: 'Ukiyo-e woodblock print',
+		keyword: 'ukiyoe',
+		description:
+			'Bold outlines and flat areas of vibrant color with detailed patterns. Elegant compositions emphasize decorative elements and create depth through layered planes.',
+	},
+	{
+		name: 'Vaporwave aesthetic',
+		keyword: 'vaporwave',
+		description:
+			'Surreal compositions with bold gradients and glowing neon elements. Retro-futuristic elements blend with geometric patterns in saturated purple and teal tones.',
+	},
+	{
+		name: 'Risograph print',
+		keyword: 'risograph',
+		description:
+			'Bold two-tone compositions with slight misalignment and textural grain. Vibrant spot colors overlap to create unexpected combinations with a distinctive printed quality.',
+	},
+	{
+		name: 'Gouache painting',
+		keyword: 'gouache',
+		description:
+			'Matte, opaque colors with smooth transitions and precise edges. Rich pigments blend seamlessly while maintaining crisp details and bold graphic qualities.',
 	},
 ];
 
@@ -1282,6 +1324,7 @@ const dalleTemplates: DalleTemplate[] = [
  * Tier 3: 7 requests per minute
  * Tier 4: 15 requests per minute
  * Tier 5: 50 requests per minute
+ * Tier 6: 200 requests per minute
  */
 const dalleThrottle = throttledQueue(imagesPerMinute, 60 * 1000, true);
 
