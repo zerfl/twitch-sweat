@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
+import { env } from './env';
 import OpenAI from 'openai';
 import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
@@ -12,30 +13,6 @@ import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-
-const requiredEnvVars = [
-	'TWITCH_CLIENT_ID',
-	'TWITCH_CLIENT_SECRET',
-	'TWITCH_CHANNELS',
-	'TWITCH_ACCESS_TOKEN',
-	'TWITCH_REFRESH_TOKEN',
-	'OPENAI_API_KEY',
-	'OPENAI_IMAGES_PER_MINUTE',
-	'OPENAI_MODEL',
-	'DISCORD_BOT_TOKEN',
-	'DISCORD_CHANNELS',
-	'DISCORD_ADMIN_USER_ID',
-	'MAX_RETRIES',
-	'CLOUDFLARE_ACCOUNT_ID',
-	'CLOUDFLARE_API_TOKEN',
-	'CLOUDFLARE_IMAGES_URL',
-	'CLOUDFLARE_AI_GATEWAY',
-];
-requiredEnvVars.forEach((envVar) => {
-	if (!process.env[envVar]) {
-		throw new Error(`${envVar} is not set`);
-	}
-});
 
 type SingleImage = {
 	image: string;
@@ -311,7 +288,7 @@ ${imagePrompt}`,
 		return { success: false, message: 'Error' };
 	}
 
-	const finalUrl = `${process.env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
+	const finalUrl = `${env.CLOUDFLARE_IMAGES_URL}/${uploadedImage.result.id}.png`;
 	console.log(`[${uniqueId}]`, userMeaning, `Image uploaded: ${finalUrl}`);
 
 	return {
@@ -677,13 +654,13 @@ async function main() {
 			}
 		});
 
-		discordBot.login(process.env.DISCORD_BOT_TOKEN!).catch((error) => {
+		discordBot.login(env.DISCORD_BOT_TOKEN).catch((error) => {
 			console.log('Discord bot login failed', error);
 		});
 
 		let tokenData: AccessToken = {
-			accessToken: process.env.TWITCH_ACCESS_TOKEN!,
-			refreshToken: process.env.TWITCH_REFRESH_TOKEN!,
+			accessToken: env.TWITCH_ACCESS_TOKEN,
+			refreshToken: env.TWITCH_REFRESH_TOKEN,
 			expiresIn: 0,
 			obtainmentTimestamp: 0,
 			scope: ['chat:edit', 'chat:read'],
@@ -698,8 +675,8 @@ async function main() {
 		}
 
 		const authProvider = new RefreshingAuthProvider({
-			clientId: process.env.TWITCH_CLIENT_ID!,
-			clientSecret: process.env.TWITCH_CLIENT_SECRET!,
+			clientId: env.TWITCH_CLIENT_ID,
+			clientSecret: env.TWITCH_CLIENT_SECRET,
 		});
 
 		authProvider.onRefresh(async (_userId, newTokenData) => {
@@ -1088,24 +1065,20 @@ const ignoreFilePath = path.join(appRootDir, 'data', 'ignore.json');
 const bannedGiftersFilePath = path.join(appRootDir, 'data', 'bannedGifters.json');
 const logFilePath = path.join(appRootDir, 'data', 'log.txt');
 
-const openAIManager = new OpenAIManager(
-	process.env.OPENAI_API_KEY!,
-	process.env.OPENAI_MODEL!,
-	process.env.CLOUDFLARE_AI_GATEWAY,
-);
-const cfUploader = new CloudflareUploader(process.env.CLOUDFLARE_ACCOUNT_ID!, process.env.CLOUDFLARE_API_TOKEN!);
-const twitchChannels = new Set((process.env.TWITCH_CHANNELS ?? '').toLowerCase().split(',').filter(Boolean));
-const twitchAdmins = new Set((process.env.TWITCH_ADMINS ?? '').toLowerCase().split(',').filter(Boolean));
-const discordChannels = process.env.DISCORD_CHANNELS!.split(',');
-const discordAdmin = process.env.DISCORD_ADMIN_USER_ID!;
+const openAIManager = new OpenAIManager(env.OPENAI_API_KEY, env.OPENAI_MODEL, env.CLOUDFLARE_AI_GATEWAY);
+const cfUploader = new CloudflareUploader(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN);
+const twitchChannels = new Set((env.TWITCH_CHANNELS ?? '').toLowerCase().split(',').filter(Boolean));
+const twitchAdmins = new Set((env.TWITCH_ADMINS ?? '').toLowerCase().split(',').filter(Boolean));
+const discordChannels = env.DISCORD_CHANNELS.split(',');
+const discordAdmin = env.DISCORD_ADMIN_USER_ID;
 const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const broadcasterBannedGiftersMap: BroadcasterBannedGiftersMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
 const messagesThrottle = throttledQueue(20, 30 * 1000, true);
 const openaiThrottle = throttledQueue(500, 60 * 1000, true);
-const imagesPerMinute = parseInt(process.env.OPENAI_IMAGES_PER_MINUTE!, 10);
-const maxRetries = parseInt(process.env.MAX_RETRIES!, 10);
+const imagesPerMinute = env.OPENAI_IMAGES_PER_MINUTE;
+const maxRetries = env.MAX_RETRIES;
 
 type DalleTemplate = {
 	name: string;
@@ -1344,7 +1317,7 @@ try {
 	for (const [broadcaster, bannedGifters] of broadcasterBannedGiftersMap) {
 		console.log(`Banned gifters for ${broadcaster}: ${bannedGifters.join(', ')}`);
 	}
-	console.log(`Using OpenAI model: ${process.env.OPENAI_MODEL}`);
+	console.log(`Using OpenAI model: ${env.OPENAI_MODEL}`);
 	console.log('Twitch admins:', Array.from(twitchAdmins).join(', '));
 
 	await main();
