@@ -24,11 +24,13 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-			"dbaeumer.vscode-eslint",
-			"esbenp.prettier-vscode",
-			"ckolkman.vscode-postgres",
-			"mefengl.copy-folder-content",
-			"LeonKohli.snapsource"
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"ckolkman.vscode-postgres",
+				"mefengl.copy-folder-content",
+				"LeonKohli.snapsource",
+				"mhutchie.git-graph",
+				"eamodio.gitlens"
 			]
 		}
 	}
