@@ -1295,7 +1295,7 @@ try {
 	};
 
 	await Promise.all([
-		ensureFileExists(tokenFilePath, JSON.stringify({})),
+		ensureFileExists(tokenFilePath),
 		ensureFileExists(imagesFilePath, JSON.stringify({})),
 		ensureFileExists(ignoreFilePath, JSON.stringify([])),
 		ensureFileExists(meaningsFilePath, JSON.stringify({})),
