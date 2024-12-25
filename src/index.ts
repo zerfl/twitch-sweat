@@ -60,6 +60,11 @@ const analysisSchema = z.object({
 	interpretation: z.string().describe('The final interpretation of the user input.'),
 });
 
+const testGenerationState = {
+	isRunning: false,
+	shouldCancel: false,
+};
+
 const sceneSchema = z.object({
 	interpretation: z.object({
 		literal: z.string(),
@@ -255,7 +260,7 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. Use the phrase "a cute BLUE round-faced avatar with blue skin" EXACTLY as written. DO NOT MODIFY IT.
-2. Follow IMMEDIATELY with a username banner.
+2. Follow IMMEDIATELY with the banner featuring the username.
 3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
 4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
 
@@ -689,287 +694,463 @@ async function main() {
 
 		await authProvider.addUserForToken(tokenData, ['chat']);
 
+		const commands = [
+			createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length === 0) return;
+
+				const target = params[0].replace('@', '');
+				if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
+					await messagesThrottle(() => {
+						return say(`@${userName} ${target} does not partake in ai sweatlings.`);
+					});
+					return;
+				}
+
+				const specifiedStyle = params[1] ?? null;
+
+				let imageResult: ImageGenerationResult;
+				try {
+					const metadata = {
+						source: 'twitch',
+						channel: broadcasterName,
+						target: target,
+						trigger: 'custom',
+					};
+					const theme = getBroadcasterTheme(broadcasterName);
+					imageResult = await retryAsyncOperation(
+						generateImage,
+						maxRetries,
+						target.toLowerCase(),
+						target,
+						metadata,
+						theme,
+						specifiedStyle,
+					);
+				} catch (error) {
+					imageResult = { success: false, message: 'Error' };
+				}
+
+				if (!imageResult.success) {
+					await messagesThrottle(() => {
+						return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you.`, 500));
+					});
+
+					return;
+				}
+				await storeImageData(broadcasterName, params[0], {
+					image: imageResult.message,
+					analysis: imageResult.analysis,
+					revisedPrompt: imageResult.revisedPrompt,
+					date: new Date().toISOString(),
+				});
+
+				try {
+					discordBot.user!.setActivity({
+						name: 'ImageGenerations',
+						state: `🖼️ generating images`,
+						type: ActivityType.Custom,
+					});
+				} catch (error) {
+					console.log('Discord error', error);
+				}
+
+				for (const channelId of discordChannels) {
+					const channel = discordBot.channels.cache.get(channelId);
+					if (channel && channel.isTextBased() && channel.isSendable()) {
+						try {
+							// const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+							// 	new ButtonBuilder().setCustomId('primary').setLabel('Click Me!').setStyle(ButtonStyle.Primary),
+							// 	new ButtonBuilder()
+							// 		.setLabel('Visit Website')
+							// 		.setStyle(ButtonStyle.Link)
+							// 		.setURL('https://discord.js.org/'),
+							// );
+
+							await channel.send({
+								content: `@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
+								// components: [row],
+							});
+						} catch (error) {
+							console.log(`Error sending message to channel ${channelId}`, error);
+						}
+					}
+				}
+
+				await messagesThrottle(() => {
+					return say(`@${userName} Here's your image: ${imageResult.message}`);
+				});
+			}),
+			createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length === 0) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a theme.`);
+					});
+					return;
+				}
+
+				const theme = params.join(' ');
+				await setTheme(broadcasterName.toLowerCase(), theme);
+				await saveThemes(themeFilePath);
+
+				await messagesThrottle(() => {
+					return say(`@${userName} Theme set to: ${theme}`);
+				});
+			}),
+			createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				await removeTheme(broadcasterName.toLowerCase());
+				await saveThemes(themeFilePath);
+
+				await messagesThrottle(() => {
+					return say(`@${userName} Theme removed.`);
+				});
+			}),
+			createBotCommand('gettheme', async (_params, { userName, broadcasterName, say }) => {
+				const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
+				await messagesThrottle(() => {
+					if (!theme) {
+						return say(`@${userName} No theme set.`);
+					}
+
+					return say(`@${userName} Current theme: ${theme}`);
+				});
+			}),
+			createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length < 2) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username and a meaning.`);
+					});
+					return;
+				}
+
+				const user = params[0];
+				const meaning = params.slice(1).join(' ');
+				await setMeaning(user.toLowerCase(), meaning);
+				await saveMeanings(meaningsFilePath);
+
+				await messagesThrottle(() => {
+					return say(`@${userName} Meaning for ${user} set.`);
+				});
+			}),
+			createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length !== 1) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
+				const user = params[0];
+				const wasRemoved = await removeMeaning(user.toLowerCase());
+				await saveMeanings(meaningsFilePath);
+
+				await messagesThrottle(() => {
+					if (!wasRemoved) {
+						return say(`@${userName} Meaning for ${user} not found.`);
+					}
+
+					return say(`@${userName} Meaning for ${user} removed.`);
+				});
+			}),
+			createBotCommand('getmeaning', async (params, { userName, say }) => {
+				if (params.length !== 1) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
+
+				const user = params[0];
+				const meaning = getUserMeaning(user.toLowerCase());
+				await messagesThrottle(() => {
+					return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
+				});
+			}),
+			createBotCommand('noai', async (_params, { userName, say }) => {
+				await ignoreListManager.addToIgnoreList(userName.toLowerCase());
+
+				await messagesThrottle(() => {
+					return say(`@${userName} You will no longer receive AI sweatlings`);
+				});
+			}),
+			createBotCommand('yesai', async (_params, { userName, say }) => {
+				await ignoreListManager.removeFromIgnoreList(userName.toLowerCase());
+
+				await messagesThrottle(() => {
+					return say(`@${userName} You will now receive AI sweatlings`);
+				});
+			}),
+			createBotCommand('bangifter', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length !== 1) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
+
+				const gifter = params[0];
+				await addBannedGifter(broadcasterName, gifter);
+				await saveBannedGifters(bannedGiftersFilePath);
+
+				await messagesThrottle(() => {
+					return say(`@${userName} Gifter ${gifter} banned. Sub gifts from this user will be ignored.`);
+				});
+			}),
+			createBotCommand('unbangifter', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (params.length !== 1) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
+
+				const gifter = params[0];
+				const wasRemoved = await removeBannedGifter(broadcasterName, gifter);
+				await saveBannedGifters(bannedGiftersFilePath);
+
+				await messagesThrottle(() => {
+					if (wasRemoved) {
+						return say(`@${userName} Gifter ${gifter} unbanned.`);
+					}
+				});
+			}),
+			createBotCommand('ping', async (_params, { userName, say }) => {
+				if (userName.toLowerCase() !== 'partyhorst') return;
+
+				await messagesThrottle(() => {
+					return say(`@${userName} pong`);
+				});
+			}),
+			createBotCommand('say', async (params, { say, userName, broadcasterName }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+				if (params.length === 0) return;
+
+				await messagesThrottle(() => {
+					return say(params.join(' '));
+				});
+			}),
+			createBotCommand('uguu', async (_params, { say, userName }) => {
+				if (userName.toLowerCase() !== 'partyhorst') return;
+
+				await messagesThrottle(() => {
+					return say(`!uguu`);
+				});
+			}),
+			createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
+				await messagesThrottle(() => {
+					return say(
+						`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userName} dnkLove`,
+					);
+				});
+			}),
+			createBotCommand('testall', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (testGenerationState.isRunning) {
+					await messagesThrottle(() => {
+						return say(`@${userName} A test generation is already running. Use !canceltests to stop it.`);
+					});
+					return;
+				}
+
+				if (params.length === 0) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username to test with.`);
+					});
+					return;
+				}
+
+				const target = params[0].replace('@', '');
+				const count = params[1] ? parseInt(params[1], 10) : 1;
+
+				if (isNaN(count) || count < 1) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a valid number of images to generate.`);
+					});
+					return;
+				}
+
+				const startTime = Date.now();
+				testGenerationState.isRunning = true;
+				testGenerationState.shouldCancel = false;
+
+				const totalTasks = count * dalleTemplates.length;
+				await messagesThrottle(() => {
+					return say(
+						`@${userName} Starting test generation for ${target} with ${count} image(s) per style. Total images: ${totalTasks}`,
+					);
+				});
+
+				let successCount = 0;
+				let failureCount = 0;
+				const theme = getBroadcasterTheme(broadcasterName);
+
+				const generationTasks = [];
+				for (const template of dalleTemplates) {
+					for (let i = 0; i < count; i++) {
+						if (testGenerationState.shouldCancel) {
+							break;
+						}
+
+						const task = async () => {
+							if (testGenerationState.shouldCancel) {
+								console.log(`Skipping generation for ${template.keyword} (cancelled)`);
+								return;
+							}
+
+							try {
+								const metadata = {
+									source: 'twitch',
+									channel: broadcasterName,
+									target: target,
+									trigger: 'test',
+									style: template.keyword,
+								};
+
+								if (testGenerationState.shouldCancel) {
+									console.log(`Skipping DALL-E generation for ${template.keyword} (cancelled)`);
+									return;
+								}
+
+								const imageResult = await retryAsyncOperation(
+									generateImage,
+									maxRetries,
+									target.toLowerCase(),
+									target,
+									metadata,
+									theme,
+									template.keyword,
+								);
+
+								if (!imageResult.success) {
+									failureCount++;
+									await messagesThrottle(() => {
+										return say(`@${userName} Failed to generate image for style ${template.keyword}`);
+									});
+									return;
+								}
+
+								successCount++;
+								await storeImageData(broadcasterName, target, {
+									image: imageResult.message,
+									analysis: imageResult.analysis,
+									revisedPrompt: imageResult.revisedPrompt,
+									date: new Date().toISOString(),
+								});
+
+								// Send to both Twitch and Discord
+								await Promise.all([
+									messagesThrottle(() => {
+										return say(`@${userName} Test image for style ${template.keyword}: ${imageResult.message}`);
+									}),
+									...discordChannels.map((channelId) => {
+										const channel = discordBot.channels.cache.get(channelId);
+										if (channel?.isTextBased() && channel.isSendable()) {
+											return channel.send({
+												content: `Test image for \`${target}\` using style ${template.keyword}: ${imageResult.message}`,
+											});
+										}
+										return Promise.resolve();
+									}),
+								]);
+							} catch (error) {
+								failureCount++;
+								console.error(`Error generating test image for ${target} with style ${template.keyword}:`, error);
+								await messagesThrottle(() => {
+									return say(`@${userName} Error generating image for style ${template.keyword}`);
+								});
+							}
+						};
+
+						generationTasks.push(task);
+					}
+				}
+
+				try {
+					await Promise.all(generationTasks.map((task) => task()));
+				} finally {
+					testGenerationState.isRunning = false;
+					const wasCancel = testGenerationState.shouldCancel;
+					testGenerationState.shouldCancel = false;
+
+					const endTime = Date.now();
+					const totalSeconds = ((endTime - startTime) / 1000).toFixed(1);
+
+					const summary =
+						`Test generation ${wasCancel ? 'cancelled' : 'complete'}. ` +
+						`Success: ${successCount}, Failures: ${failureCount}, ` +
+						`Total: ${successCount + failureCount}/${totalTasks}. ` +
+						`Time taken: ${totalSeconds}s`;
+
+					await Promise.all([
+						messagesThrottle(() => {
+							return say(`@${userName} ${summary}`);
+						}),
+						...discordChannels.map((channelId) => {
+							const channel = discordBot.channels.cache.get(channelId);
+							if (channel?.isTextBased() && channel.isSendable()) {
+								return channel.send({
+									content: `${summary}`,
+								});
+							}
+							return Promise.resolve();
+						}),
+					]);
+				}
+			}),
+			createBotCommand('canceltests', async (params, { userName, broadcasterName, say }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+					return;
+				}
+
+				if (!testGenerationState.isRunning) {
+					await messagesThrottle(() => {
+						return say(`@${userName} No test generation is currently running.`);
+					});
+					return;
+				}
+
+				testGenerationState.shouldCancel = true;
+				await messagesThrottle(() => {
+					return say(`@${userName} Cancelling test generation after current tasks complete...`);
+				});
+			}),
+		];
+
 		const twitchBot = new Bot({
 			authProvider,
 			channels: Array.from(twitchChannels),
-			commands: [
-				createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length === 0) return;
-
-					const target = params[0].replace('@', '');
-					if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
-						await messagesThrottle(() => {
-							return say(`@${userName} ${target} does not partake in ai sweatlings.`);
-						});
-						return;
-					}
-
-					const specifiedStyle = params[1] ?? null;
-
-					let imageResult: ImageGenerationResult;
-					try {
-						const metadata = {
-							source: 'twitch',
-							channel: broadcasterName,
-							target: target,
-							trigger: 'custom',
-						};
-						const theme = getBroadcasterTheme(broadcasterName);
-						imageResult = await retryAsyncOperation(
-							generateImage,
-							maxRetries,
-							target.toLowerCase(),
-							target,
-							metadata,
-							theme,
-							specifiedStyle,
-						);
-					} catch (error) {
-						imageResult = { success: false, message: 'Error' };
-					}
-
-					if (!imageResult.success) {
-						await messagesThrottle(() => {
-							return say(truncate(`Sorry, ${userName}, I was unable to generate an image for you.`, 500));
-						});
-
-						return;
-					}
-					await storeImageData(broadcasterName, params[0], {
-						image: imageResult.message,
-						analysis: imageResult.analysis,
-						revisedPrompt: imageResult.revisedPrompt,
-						date: new Date().toISOString(),
-					});
-
-					try {
-						discordBot.user!.setActivity({
-							name: 'ImageGenerations',
-							state: `🖼️ generating images`,
-							type: ActivityType.Custom,
-						});
-					} catch (error) {
-						console.log('Discord error', error);
-					}
-
-					for (const channelId of discordChannels) {
-						const channel = discordBot.channels.cache.get(channelId);
-						if (channel && channel.isTextBased() && channel.isSendable()) {
-							try {
-								// const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-								// 	new ButtonBuilder().setCustomId('primary').setLabel('Click Me!').setStyle(ButtonStyle.Primary),
-								// 	new ButtonBuilder()
-								// 		.setLabel('Visit Website')
-								// 		.setStyle(ButtonStyle.Link)
-								// 		.setURL('https://discord.js.org/'),
-								// );
-
-								await channel.send({
-									content: `@${userName} requested generation for \`${target}\`. Here's the sweatling: ${imageResult.message}`,
-									// components: [row],
-								});
-							} catch (error) {
-								console.log(`Error sending message to channel ${channelId}`, error);
-							}
-						}
-					}
-
-					await messagesThrottle(() => {
-						return say(`@${userName} Here's your image: ${imageResult.message}`);
-					});
-				}),
-				createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length === 0) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a theme.`);
-						});
-						return;
-					}
-
-					const theme = params.join(' ');
-					await setTheme(broadcasterName.toLowerCase(), theme);
-					await saveThemes(themeFilePath);
-
-					await messagesThrottle(() => {
-						return say(`@${userName} Theme set to: ${theme}`);
-					});
-				}),
-				createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					await removeTheme(broadcasterName.toLowerCase());
-					await saveThemes(themeFilePath);
-
-					await messagesThrottle(() => {
-						return say(`@${userName} Theme removed.`);
-					});
-				}),
-				createBotCommand('gettheme', async (_params, { userName, broadcasterName, say }) => {
-					const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
-					await messagesThrottle(() => {
-						if (!theme) {
-							return say(`@${userName} No theme set.`);
-						}
-
-						return say(`@${userName} Current theme: ${theme}`);
-					});
-				}),
-				createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length < 2) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username and a meaning.`);
-						});
-						return;
-					}
-
-					const user = params[0];
-					const meaning = params.slice(1).join(' ');
-					await setMeaning(user.toLowerCase(), meaning);
-					await saveMeanings(meaningsFilePath);
-
-					await messagesThrottle(() => {
-						return say(`@${userName} Meaning for ${user} set.`);
-					});
-				}),
-				createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length !== 1) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
-						});
-						return;
-					}
-					const user = params[0];
-					const wasRemoved = await removeMeaning(user.toLowerCase());
-					await saveMeanings(meaningsFilePath);
-
-					await messagesThrottle(() => {
-						if (!wasRemoved) {
-							return say(`@${userName} Meaning for ${user} not found.`);
-						}
-
-						return say(`@${userName} Meaning for ${user} removed.`);
-					});
-				}),
-				createBotCommand('getmeaning', async (params, { userName, say }) => {
-					if (params.length !== 1) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
-						});
-						return;
-					}
-
-					const user = params[0];
-					const meaning = getUserMeaning(user.toLowerCase());
-					await messagesThrottle(() => {
-						return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
-					});
-				}),
-				createBotCommand('noai', async (_params, { userName, say }) => {
-					await ignoreListManager.addToIgnoreList(userName.toLowerCase());
-
-					await messagesThrottle(() => {
-						return say(`@${userName} You will no longer receive AI sweatlings`);
-					});
-				}),
-				createBotCommand('yesai', async (_params, { userName, say }) => {
-					await ignoreListManager.removeFromIgnoreList(userName.toLowerCase());
-
-					await messagesThrottle(() => {
-						return say(`@${userName} You will now receive AI sweatlings`);
-					});
-				}),
-				createBotCommand('bangifter', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length !== 1) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
-						});
-						return;
-					}
-
-					const gifter = params[0];
-					await addBannedGifter(broadcasterName, gifter);
-					await saveBannedGifters(bannedGiftersFilePath);
-
-					await messagesThrottle(() => {
-						return say(`@${userName} Gifter ${gifter} banned. Sub gifts from this user will be ignored.`);
-					});
-				}),
-				createBotCommand('unbangifter', async (params, { userName, broadcasterName, say }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-
-					if (params.length !== 1) {
-						await messagesThrottle(() => {
-							return say(`@${userName} Please provide a username.`);
-						});
-						return;
-					}
-
-					const gifter = params[0];
-					const wasRemoved = await removeBannedGifter(broadcasterName, gifter);
-					await saveBannedGifters(bannedGiftersFilePath);
-
-					await messagesThrottle(() => {
-						if (wasRemoved) {
-							return say(`@${userName} Gifter ${gifter} unbanned.`);
-						}
-					});
-				}),
-				createBotCommand('ping', async (_params, { userName, say }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
-
-					await messagesThrottle(() => {
-						return say(`@${userName} pong`);
-					});
-				}),
-				createBotCommand('say', async (params, { say, userName, broadcasterName }) => {
-					if (!isAdminOrBroadcaster(userName, broadcasterName)) {
-						return;
-					}
-					if (params.length === 0) return;
-
-					await messagesThrottle(() => {
-						return say(params.join(' '));
-					});
-				}),
-				createBotCommand('uguu', async (_params, { say, userName }) => {
-					if (userName.toLowerCase() !== 'partyhorst') return;
-
-					await messagesThrottle(() => {
-						return say(`!uguu`);
-					});
-				}),
-				createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
-					await messagesThrottle(() => {
-						return say(
-							`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userName} dnkLove`,
-						);
-					});
-				}),
-			],
+			commands: commands,
 		});
 
 		twitchBot.onDisconnect((manually, reason) => {
@@ -1286,19 +1467,13 @@ const dalleTemplates: DalleTemplate[] = [
 			'Bold geometric shapes and streamlined forms with metallic gold and silver accents. Symmetrical compositions featuring stepped forms and sunburst patterns create a sense of luxury and modern sophistication.',
 	},
 	{
-		name: 'Dutch Golden Age painting',
-		keyword: 'dutch_golden',
-		description:
-			'Rich dramatic lighting with deep shadows and luminous highlights. Meticulous attention to surface textures and material details creates an atmosphere of contemplative stillness.',
-	},
-	{
 		name: 'Ukiyo-e woodblock print',
 		keyword: 'ukiyoe',
 		description:
 			'Bold outlines and flat areas of vibrant color with detailed patterns. Elegant compositions emphasize decorative elements and create depth through layered planes.',
 	},
 	{
-		name: 'Vaporwave aesthetic',
+		name: 'Vaporwave illustration',
 		keyword: 'vaporwave',
 		description:
 			'Surreal compositions with bold gradients and glowing neon elements. Retro-futuristic elements blend with geometric patterns in saturated purple and teal tones.',
@@ -1314,6 +1489,12 @@ const dalleTemplates: DalleTemplate[] = [
 		keyword: 'gouache',
 		description:
 			'Matte, opaque colors with smooth transitions and precise edges. Rich pigments blend seamlessly while maintaining crisp details and bold graphic qualities.',
+	},
+	{
+		name: 'Acrylic painting',
+		keyword: 'acrylic',
+		description:
+			'Vivid, textured surfaces with bold brushstrokes and vibrant colors. Thick impasto layers create dynamic textures and expressive mark-making.',
 	},
 ];
 
