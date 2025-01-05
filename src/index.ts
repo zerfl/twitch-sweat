@@ -781,7 +781,7 @@ async function main() {
 				}
 
 				await messagesThrottle(() => {
-					return say(`@${userName} Here's your image: ${imageResult.message}`);
+					return say(`@${userName} requested generation for @${target}. Here's the sweatling: ${imageResult.message}`);
 				});
 			}),
 			createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
