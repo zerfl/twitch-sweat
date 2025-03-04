@@ -249,7 +249,9 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
 			model: 'dall-e-3',
-			prompt: `Create a prompt using the following rules:
+			prompt: `Your task is to create concise and focused image generation prompt using the provided structured data.
+			
+Create a prompt using the following rules:
 
 Start with the specific art medium/style from the JSON data. Use the EXACT STYLE provided and phrase the beginning NATURALLY to match it. For example:
 - For watercolor: "A watercolor painting of..."
@@ -263,6 +265,8 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 2. Follow IMMEDIATELY with the banner featuring the username.
 3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
 4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
+5. IMPORTANT: Generate a CONCISE prompt. Be brief and to the point. Focus on key elements only, removing unnecessary details while preserving the core concept and style.
+6. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
 
 [NOTES]
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
@@ -1276,6 +1280,7 @@ Create a detailed, flowing narrative analysis following these elements:
 
 1. Reason through the necessary steps to interpret the username thoroughly and creatively
 2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)
+3. Take usernames at face value, assume no typos are present
 
 PART 2 - STRUCTURED FORMAT
 Following the analysis, provide a structured breakdown of all elements:
