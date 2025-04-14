@@ -3,12 +3,11 @@ import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
 import { env } from './env';
 import OpenAI from 'openai';
-import { fileURLToPath } from 'url';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
 import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials, TextChannel } from 'discord.js';
 import throttledQueue from 'throttled-queue';
-import { IgnoreListManager } from './utils/IgnoreListManager';
+import { IgnoreListManager } from './managers/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
 import { nanoid } from 'nanoid';
@@ -16,6 +15,11 @@ import { z } from 'zod';
 import { MAX_RETRIES, MESSAGE_THROTTLE_LIMIT, MESSAGE_THROTTLE_INTERVAL_MS, OPENAI_THROTTLE_LIMIT, OPENAI_THROTTLE_INTERVAL_MS, DALLE_THROTTLE_LIMIT, DALLE_THROTTLE_INTERVAL_MS } from './constants/config';
 import { STRUCTURED_OUTPUT_PROMPT, THEME_PROMPT, DALLE_IMAGE_PROMPT_TEMPLATE } from './constants/prompts';
 import { DALLE_TEMPLATES, DalleTemplate } from './constants/styles';
+import { ThemeManager } from './managers/ThemeManager';
+import { MeaningManager } from './managers/MeaningManager';
+import { BannedGifterManager } from './managers/BannedGifterManager';
+import { ImageDataStore } from './managers/ImageDataStore';
+import { isAdminOrBroadcaster, ensureFileExists, getAppRootDir, exists, retryAsyncOperation, truncate } from './utils/helpers';
 
 type SingleImage = {
 	image: string;
@@ -38,22 +42,12 @@ type ImageGenerationError = {
 
 type ImageGenerationResult = ImageGenerationSuccess | ImageGenerationError;
 
-type BroadcasterImages = {
-	[broadcaster: string]: {
-		[user: string]: SingleImage[];
-	};
-};
-
 interface EventData {
 	broadcasterName: string;
 	userName: string;
 	userDisplayName: string;
 	isGifting?: boolean;
 }
-
-type UserMeaningMap = Map<string, string>;
-type BroadcasterThemeMap = Map<string, string>;
-type BroadcasterBannedGiftersMap = Map<string, string[]>;
 
 const analysisSchema = z.object({
 	reasoning: z.object({
@@ -125,49 +119,6 @@ const finalSchema = z.object({
 	step2: sceneSchema.describe('The avatar and scene generated based on the analysis.'),
 });
 
-const isAdminOrBroadcaster = (userName: string, broadcasterName: string): boolean => {
-	const lowerUserName = userName.toLowerCase();
-	const lowerBroadcasterName = broadcasterName.toLowerCase();
-	const adminList = [...Array.from(twitchAdmins), lowerBroadcasterName];
-	return adminList.includes(lowerUserName);
-};
-
-async function ensureFileExists(filePath: string, defaultContent: string = ''): Promise<void> {
-	try {
-		await fs.access(filePath);
-	} catch {
-		await fs.writeFile(filePath, defaultContent, 'utf-8');
-	}
-}
-
-// TODO: This is seriously inefficient, we need to store the data in a database ASAP
-async function storeImageData(broadcaster: string, user: string, imageData: SingleImage) {
-	let broadcasterImageData: BroadcasterImages = {};
-
-	try {
-		broadcasterImageData = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
-	} catch (error) {
-		console.error(`Error reading image file at ${imagesFilePath}`, error);
-	}
-
-	const userImages = broadcasterImageData[broadcaster]?.[user] || [];
-	userImages.push(imageData);
-
-	broadcasterImageData[broadcaster] = {
-		...(broadcasterImageData[broadcaster] || {}),
-		[user]: userImages,
-	};
-
-	await fs.writeFile(imagesFilePath, JSON.stringify(broadcasterImageData, null, 4), 'utf-8');
-
-	let totalImages = 0;
-	for (const user in broadcasterImageData[broadcaster]) {
-		totalImages += broadcasterImageData[broadcaster][user].length;
-	}
-
-	return totalImages;
-}
-
 async function generateImage(
 	username: string,
 	userDisplayName: string,
@@ -187,7 +138,7 @@ async function generateImage(
 		style = template.keyword.toLowerCase();
 	}
 
-	const userMeaning = getUserMeaning(username.toLowerCase());
+	const userMeaning = meaningManager.getUserMeaning(username.toLowerCase());
 	const queryMessage =
 		userMeaning !== username
 			? `Literal username: ${userDisplayName}\nIntended meaning: ${userMeaning}`
@@ -287,65 +238,6 @@ async function generateImage(
 	};
 }
 
-async function getAppRootDir() {
-	let tries = 0;
-	let currentDir = path.dirname(fileURLToPath(import.meta.url));
-	let found = await exists(path.join(currentDir, 'package.json'));
-
-	while (!found && tries < 10) {
-		currentDir = path.join(currentDir, '..');
-		found = await exists(path.join(currentDir, 'package.json'));
-		console.log(path.join(currentDir, 'package.json'));
-		tries++;
-	}
-
-	if (!found) {
-		throw new Error('package.json not found after 10 attempts');
-	}
-
-	return currentDir;
-}
-
-async function exists(f: PathLike) {
-	try {
-		await fs.stat(f);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-async function retryAsyncOperation<T, Args extends unknown[]>(
-	asyncOperation: (...args: Args) => Promise<T>,
-	maxRetries: number = 3,
-	...args: Args
-): Promise<T> {
-	let lastError: Error | null = null;
-
-	for (let attempt = 0; attempt <= maxRetries; attempt++) {
-		try {
-			return await asyncOperation(...args);
-		} catch (error) {
-			if (error instanceof Error) {
-				lastError = error;
-			}
-			if (attempt < maxRetries) {
-				console.log(
-					`[ERROR] Attempt ${attempt + 1} failed, retrying...: ${error instanceof Error ? error.message : error}`,
-				);
-			} else {
-				console.log(
-					`[ERROR] Attempt ${attempt + 1} failed, no more retries left: ${
-						error instanceof Error ? error.message : error
-					}`,
-				);
-			}
-		}
-	}
-
-	throw lastError;
-}
-
 async function handleEventAndSendImageMessage(
 	twitchBot: Bot,
 	discordBot: DiscordClient,
@@ -362,7 +254,7 @@ async function handleEventAndSendImageMessage(
 	let imageResult: ImageGenerationResult;
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: verb };
-		const theme = getBroadcasterTheme(broadcasterName);
+		const theme = themeManager.getBroadcasterTheme(broadcasterName);
 		imageResult = await retryAsyncOperation(generateImage, MAX_RETRIES, userName, userDisplayName, metadata, theme);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
@@ -378,7 +270,7 @@ async function handleEventAndSendImageMessage(
 		return;
 	}
 
-	await storeImageData(broadcasterName, userName, {
+	await imageDataStore.storeImageData(broadcasterName, userName, {
 		image: imageResult.message,
 		analysis: imageResult.analysis,
 		revisedPrompt: imageResult.revisedPrompt,
@@ -415,114 +307,6 @@ async function handleEventAndSendImageMessage(
 		);
 	});
 }
-
-async function loadThemes(filePath: PathLike) {
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		const meanings = JSON.parse(data) as Record<string, string>;
-		Object.entries(meanings).forEach(([broadcaster, theme]) => {
-			broadcasterThemeMap.set(broadcaster, theme);
-		});
-	} catch (error) {
-		console.log(`Error reading themes file at ${filePath}`, error);
-	}
-}
-
-async function setTheme(broadcaster: string, theme: string) {
-	broadcasterThemeMap.set(broadcaster, theme);
-}
-
-async function removeTheme(broadcaster: string) {
-	return broadcasterThemeMap.delete(broadcaster);
-}
-
-async function saveThemes(filePath: PathLike) {
-	const themes = Object.fromEntries(broadcasterThemeMap);
-	await fs.writeFile(filePath, JSON.stringify(themes, null, 4), 'utf-8');
-}
-
-function getBroadcasterTheme(broadcaster: string) {
-	return broadcasterThemeMap.get(broadcaster) || '';
-}
-
-async function loadMeanings(filePath: PathLike) {
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		const meanings = JSON.parse(data) as Record<string, string>;
-		Object.entries(meanings).forEach(([user, meaning]) => {
-			userMeaningMap.set(user, meaning);
-		});
-	} catch (error) {
-		console.log(`Error reading meanings file at ${filePath}`, error);
-	}
-}
-
-async function setMeaning(user: string, meaning: string) {
-	userMeaningMap.set(user, meaning);
-}
-
-async function removeMeaning(user: string) {
-	return userMeaningMap.delete(user);
-}
-
-async function saveMeanings(filePath: PathLike) {
-	const meanings = Object.fromEntries(userMeaningMap);
-	await fs.writeFile(filePath, JSON.stringify(meanings, null, 4), 'utf-8');
-}
-
-function getUserMeaning(user: string) {
-	return userMeaningMap.get(user) || user;
-}
-
-async function loadBannedGifters(filePath: PathLike): Promise<void> {
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		const bannedGiftersData = JSON.parse(data) as Record<string, string[]>;
-		for (const [broadcaster, bannedGifters] of Object.entries(bannedGiftersData)) {
-			broadcasterBannedGiftersMap.set(
-				broadcaster.toLowerCase(),
-				bannedGifters.map((gifter) => gifter.toLowerCase()),
-			);
-		}
-	} catch (error) {
-		console.error(`Error reading banned gifters file at ${filePath}`, error);
-	}
-}
-
-async function addBannedGifter(broadcaster: string, gifter: string): Promise<void> {
-	const lowerBroadcaster = broadcaster.toLowerCase();
-	const lowerGifter = gifter.toLowerCase();
-	const bannedGifters: string[] = broadcasterBannedGiftersMap.get(lowerBroadcaster) || [];
-	if (!bannedGifters.includes(lowerGifter)) {
-		bannedGifters.push(lowerGifter);
-		broadcasterBannedGiftersMap.set(lowerBroadcaster, bannedGifters);
-	}
-}
-
-async function removeBannedGifter(broadcaster: string, gifter: string): Promise<boolean> {
-	const lowerBroadcaster = broadcaster.toLowerCase();
-	const lowerGifter = gifter.toLowerCase();
-	const bannedGifters: string[] = broadcasterBannedGiftersMap.get(lowerBroadcaster) || [];
-	const index = bannedGifters.indexOf(lowerGifter);
-	if (index > -1) {
-		bannedGifters.splice(index, 1);
-		broadcasterBannedGiftersMap.set(lowerBroadcaster, bannedGifters);
-		return true;
-	}
-	return false;
-}
-
-async function saveBannedGifters(filePath: PathLike): Promise<void> {
-	const bannedGiftersData = Object.fromEntries(broadcasterBannedGiftersMap);
-	await fs.writeFile(filePath, JSON.stringify(bannedGiftersData, null, 4), 'utf-8');
-}
-
-function isGifterBanned(broadcaster: string, gifter: string): boolean {
-	const bannedGifters = broadcasterBannedGiftersMap.get(broadcaster.toLowerCase()) || [];
-	return bannedGifters.includes(gifter.toLowerCase());
-}
-
-const truncate = (str: string, n: number) => (str.length > n ? `${str.substring(0, n - 1)}...` : str);
 
 async function main() {
 	try {
@@ -595,7 +379,7 @@ async function main() {
 				}
 			} else if (command === '!generateimage') {
 				const broadcasterName = params[0];
-				const theme = getBroadcasterTheme(broadcasterName);
+				const theme = themeManager.getBroadcasterTheme(broadcasterName);
 				params.splice(0, 1);
 
 				for (const param of params) {
@@ -617,7 +401,7 @@ async function main() {
 						await message.reply(`Unable to generate image for ${param}`);
 						continue;
 					}
-					await storeImageData(broadcasterName, param, {
+					await imageDataStore.storeImageData(broadcasterName, param, {
 						image: imageResult.message,
 						analysis: imageResult.analysis,
 						revisedPrompt: imageResult.revisedPrompt,
@@ -679,7 +463,7 @@ async function main() {
 
 		const commands = [
 			createBotCommand('aisweatling', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -703,7 +487,7 @@ async function main() {
 						target: target,
 						trigger: 'custom',
 					};
-					const theme = getBroadcasterTheme(broadcasterName);
+					const theme = themeManager.getBroadcasterTheme(broadcasterName);
 					imageResult = await retryAsyncOperation(
 						generateImage,
 						MAX_RETRIES,
@@ -724,7 +508,7 @@ async function main() {
 
 					return;
 				}
-				await storeImageData(broadcasterName, params[0], {
+				await imageDataStore.storeImageData(broadcasterName, params[0], {
 					image: imageResult.message,
 					analysis: imageResult.analysis,
 					revisedPrompt: imageResult.revisedPrompt,
@@ -768,7 +552,7 @@ async function main() {
 				});
 			}),
 			createBotCommand('settheme', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -780,27 +564,25 @@ async function main() {
 				}
 
 				const theme = params.join(' ');
-				await setTheme(broadcasterName.toLowerCase(), theme);
-				await saveThemes(themeFilePath);
+				await themeManager.setTheme(broadcasterName.toLowerCase(), theme);
 
 				await messagesThrottle(() => {
 					return say(`@${userName} Theme set to: ${theme}`);
 				});
 			}),
 			createBotCommand('deltheme', async (_params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
-				await removeTheme(broadcasterName.toLowerCase());
-				await saveThemes(themeFilePath);
+				await themeManager.removeTheme(broadcasterName.toLowerCase());
 
 				await messagesThrottle(() => {
 					return say(`@${userName} Theme removed.`);
 				});
 			}),
 			createBotCommand('gettheme', async (_params, { userName, broadcasterName, say }) => {
-				const theme = getBroadcasterTheme(broadcasterName.toLowerCase());
+				const theme = themeManager.getBroadcasterTheme(broadcasterName.toLowerCase());
 				await messagesThrottle(() => {
 					if (!theme) {
 						return say(`@${userName} No theme set.`);
@@ -810,7 +592,7 @@ async function main() {
 				});
 			}),
 			createBotCommand('setmeaning', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -823,15 +605,14 @@ async function main() {
 
 				const user = params[0];
 				const meaning = params.slice(1).join(' ');
-				await setMeaning(user.toLowerCase(), meaning);
-				await saveMeanings(meaningsFilePath);
+				await meaningManager.setMeaning(user.toLowerCase(), meaning);
 
 				await messagesThrottle(() => {
 					return say(`@${userName} Meaning for ${user} set.`);
 				});
 			}),
 			createBotCommand('delmeaning', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -842,8 +623,7 @@ async function main() {
 					return;
 				}
 				const user = params[0];
-				const wasRemoved = await removeMeaning(user.toLowerCase());
-				await saveMeanings(meaningsFilePath);
+				const wasRemoved = await meaningManager.removeMeaning(user.toLowerCase());
 
 				await messagesThrottle(() => {
 					if (!wasRemoved) {
@@ -862,7 +642,7 @@ async function main() {
 				}
 
 				const user = params[0];
-				const meaning = getUserMeaning(user.toLowerCase());
+				const meaning = meaningManager.getUserMeaning(user.toLowerCase());
 				await messagesThrottle(() => {
 					return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
 				});
@@ -882,7 +662,7 @@ async function main() {
 				});
 			}),
 			createBotCommand('bangifter', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -894,15 +674,14 @@ async function main() {
 				}
 
 				const gifter = params[0];
-				await addBannedGifter(broadcasterName, gifter);
-				await saveBannedGifters(bannedGiftersFilePath);
+				await bannedGifterManager.addBannedGifter(broadcasterName, gifter);
 
 				await messagesThrottle(() => {
 					return say(`@${userName} Gifter ${gifter} banned. Sub gifts from this user will be ignored.`);
 				});
 			}),
 			createBotCommand('unbangifter', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -914,8 +693,7 @@ async function main() {
 				}
 
 				const gifter = params[0];
-				const wasRemoved = await removeBannedGifter(broadcasterName, gifter);
-				await saveBannedGifters(bannedGiftersFilePath);
+				const wasRemoved = await bannedGifterManager.removeBannedGifter(broadcasterName, gifter);
 
 				await messagesThrottle(() => {
 					if (wasRemoved) {
@@ -931,7 +709,7 @@ async function main() {
 				});
 			}),
 			createBotCommand('say', async (params, { say, userName, broadcasterName }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 				if (params.length === 0) return;
@@ -955,7 +733,7 @@ async function main() {
 				});
 			}),
 			createBotCommand('testgenerate', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -996,7 +774,7 @@ async function main() {
 
 				let successCount = 0;
 				let failureCount = 0;
-				const theme = getBroadcasterTheme(broadcasterName);
+				const theme = themeManager.getBroadcasterTheme(broadcasterName);
 
 				const generationTasks = [];
 				for (const template of DALLE_TEMPLATES) {
@@ -1044,7 +822,7 @@ async function main() {
 								}
 
 								successCount++;
-								await storeImageData(broadcasterName, target, {
+								await imageDataStore.storeImageData(broadcasterName, target, {
 									image: imageResult.message,
 									analysis: imageResult.analysis,
 									revisedPrompt: imageResult.revisedPrompt,
@@ -1112,7 +890,7 @@ async function main() {
 				}
 			}),
 			createBotCommand('canceltests', async (params, { userName, broadcasterName, say }) => {
-				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
 
@@ -1184,7 +962,7 @@ async function main() {
 
 			// If the gifter is banned (and not anonymous), don't generate an image for the gifter.
 			// We only generate an image for the gifter in this event, not for the recipients.
-			if (gifterName && isGifterBanned(broadcasterName, gifterName)) {
+			if (gifterName && bannedGifterManager.isGifterBanned(broadcasterName, gifterName)) {
 				console.log(`Gifter ${gifterName} is banned for ${broadcasterName}, not generating image`);
 				return;
 			}
@@ -1202,7 +980,7 @@ async function main() {
 			// Don't generate image for the recipient if:
 			// a) The gifter is anonymous, OR
 			// b) The gifter is banned.
-			if (!gifterName || isGifterBanned(broadcasterName, gifterName)) {
+			if (!gifterName || bannedGifterManager.isGifterBanned(broadcasterName, gifterName)) {
 				console.log(`Gifter ${gifterName || 'anonymous'} is banned for ${broadcasterName}, not generating image`);
 				return;
 			}
@@ -1235,10 +1013,11 @@ const twitchChannels = new Set((env.TWITCH_CHANNELS ?? '').toLowerCase().split('
 const twitchAdmins = new Set((env.TWITCH_ADMINS ?? '').toLowerCase().split(',').filter(Boolean));
 const discordChannels = env.DISCORD_CHANNELS.split(',');
 const discordAdmin = env.DISCORD_ADMIN_USER_ID;
-const userMeaningMap: UserMeaningMap = new Map();
-const broadcasterThemeMap: BroadcasterThemeMap = new Map();
-const broadcasterBannedGiftersMap: BroadcasterBannedGiftersMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
+const themeManager = new ThemeManager(themeFilePath);
+const meaningManager = new MeaningManager(meaningsFilePath);
+const bannedGifterManager = new BannedGifterManager(bannedGiftersFilePath);
+const imageDataStore = new ImageDataStore(imagesFilePath);
 const messagesThrottle = throttledQueue(MESSAGE_THROTTLE_LIMIT, MESSAGE_THROTTLE_INTERVAL_MS, true);
 const openaiThrottle = throttledQueue(OPENAI_THROTTLE_LIMIT, OPENAI_THROTTLE_INTERVAL_MS, true);
 const dalleThrottle = throttledQueue(DALLE_THROTTLE_LIMIT, DALLE_THROTTLE_INTERVAL_MS, true);
@@ -1262,9 +1041,9 @@ try {
 		ignoreListManager.loadIgnoreList(),
 	]);
 
-	await loadThemes(themeFilePath);
-	await loadMeanings(meaningsFilePath);
-	await loadBannedGifters(bannedGiftersFilePath);
+	await themeManager.loadThemes();
+	await meaningManager.loadMeanings();
+	await bannedGifterManager.loadBannedGifters();
 
 	console.log(`Using token file: ${tokenFilePath}`);
 	console.log(`Using images file: ${imagesFilePath}`);
@@ -1272,7 +1051,7 @@ try {
 	console.log(`Using themes file: ${themeFilePath}`);
 	console.log(`Using ignore file: ${ignoreFilePath}`);
 	console.log(`Using banned gifters file: ${bannedGiftersFilePath}`);
-	for (const [broadcaster, bannedGifters] of broadcasterBannedGiftersMap) {
+	for (const [broadcaster, bannedGifters] of bannedGifterManager.getMap()) {
 		console.log(`Banned gifters for ${broadcaster}: ${bannedGifters.join(', ')}`);
 	}
 	console.log(`Using OpenAI model: ${env.OPENAI_MODEL}`);
