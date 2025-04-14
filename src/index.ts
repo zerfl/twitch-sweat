@@ -13,6 +13,9 @@ import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
+import { MAX_RETRIES, MESSAGE_THROTTLE_LIMIT, MESSAGE_THROTTLE_INTERVAL_MS, OPENAI_THROTTLE_LIMIT, OPENAI_THROTTLE_INTERVAL_MS, DALLE_THROTTLE_LIMIT, DALLE_THROTTLE_INTERVAL_MS } from './constants/config';
+import { STRUCTURED_OUTPUT_PROMPT, THEME_PROMPT, DALLE_IMAGE_PROMPT_TEMPLATE } from './constants/prompts';
+import { DALLE_TEMPLATES, DalleTemplate } from './constants/styles';
 
 type SingleImage = {
 	image: string;
@@ -176,11 +179,11 @@ async function generateImage(
 
 	let template: DalleTemplate | undefined;
 	if (style) {
-		template = dalleTemplates.find((t) => t.keyword.toLowerCase() === style!.toLowerCase());
+		template = DALLE_TEMPLATES.find((t) => t.keyword.toLowerCase() === style!.toLowerCase());
 	}
 	if (!template) {
-		const templateIndex = Math.floor(Math.random() * dalleTemplates.length);
-		template = dalleTemplates[templateIndex] as DalleTemplate;
+		const templateIndex = Math.floor(Math.random() * DALLE_TEMPLATES.length);
+		template = DALLE_TEMPLATES[templateIndex] as DalleTemplate;
 		style = template.keyword.toLowerCase();
 	}
 
@@ -196,7 +199,7 @@ async function generateImage(
 	const structuredAnalysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: structuredOutputPrompt
+			content: STRUCTURED_OUTPUT_PROMPT
 				.replace('__DATE__', new Date().toISOString().slice(0, 10))
 				.replace('__STYLE_NAME__', template.name),
 		},
@@ -219,7 +222,7 @@ async function generateImage(
 		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
 			{
 				role: 'system',
-				content: themePrompt.replace('__THEME__', theme),
+				content: THEME_PROMPT.replace('__THEME__', theme),
 			},
 			{
 				role: 'user',
@@ -249,31 +252,7 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
 			model: 'dall-e-3',
-			prompt: `Your task is to create concise and focused image generation prompt using the provided structured data.
-			
-Create a prompt using the following rules:
-
-Start with the specific art medium/style from the JSON data. Use the EXACT STYLE provided and phrase the beginning NATURALLY to match it. For example:
-- For watercolor: "A watercolor painting of..."
-- For pixel art: "16-bit pixel art of..."
-- For charcoal: "A charcoal drawing of..."
-
-These are just examples. ALWAYS begin with the style specified in the JSON.
-
-[IMPORTANT RULES]
-1. Use the phrase "a cute BLUE round-faced avatar with blue skin" EXACTLY as written. DO NOT MODIFY IT.
-2. Follow IMMEDIATELY with the banner featuring the username.
-3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
-4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
-5. IMPORTANT: Generate a CONCISE prompt. Be brief and to the point. Focus on key elements only, removing unnecessary details while preserving the core concept and style.
-6. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
-
-[NOTES]
-- The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
-- AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
-
-Data:
-${imagePrompt}`,
+			prompt: DALLE_IMAGE_PROMPT_TEMPLATE.replace('__DATA__', imagePrompt),
 			quality: 'standard',
 			size: '1024x1024',
 			response_format: 'url',
@@ -384,7 +363,7 @@ async function handleEventAndSendImageMessage(
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: verb };
 		const theme = getBroadcasterTheme(broadcasterName);
-		imageResult = await retryAsyncOperation(generateImage, maxRetries, userName, userDisplayName, metadata, theme);
+		imageResult = await retryAsyncOperation(generateImage, MAX_RETRIES, userName, userDisplayName, metadata, theme);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
 	}
@@ -628,7 +607,7 @@ async function main() {
 					};
 					const imageResult = await retryAsyncOperation(
 						generateImage,
-						maxRetries,
+						MAX_RETRIES,
 						param.toLowerCase(),
 						param,
 						metadata,
@@ -727,7 +706,7 @@ async function main() {
 					const theme = getBroadcasterTheme(broadcasterName);
 					imageResult = await retryAsyncOperation(
 						generateImage,
-						maxRetries,
+						MAX_RETRIES,
 						target.toLowerCase(),
 						target,
 						metadata,
@@ -975,7 +954,7 @@ async function main() {
 					);
 				});
 			}),
-			createBotCommand('testall', async (params, { userName, broadcasterName, say }) => {
+			createBotCommand('testgenerate', async (params, { userName, broadcasterName, say }) => {
 				if (!isAdminOrBroadcaster(userName, broadcasterName)) {
 					return;
 				}
@@ -995,7 +974,7 @@ async function main() {
 				}
 
 				const target = params[0].replace('@', '');
-				const count = params[1] ? parseInt(params[1], 10) : 1;
+				const count = params.length > 1 ? parseInt(params[1], 10) : 1;
 
 				if (isNaN(count) || count < 1) {
 					await messagesThrottle(() => {
@@ -1008,7 +987,7 @@ async function main() {
 				testGenerationState.isRunning = true;
 				testGenerationState.shouldCancel = false;
 
-				const totalTasks = count * dalleTemplates.length;
+				const totalTasks = count * DALLE_TEMPLATES.length;
 				await messagesThrottle(() => {
 					return say(
 						`@${userName} Starting test generation for ${target} with ${count} image(s) per style. Total images: ${totalTasks}`,
@@ -1020,7 +999,7 @@ async function main() {
 				const theme = getBroadcasterTheme(broadcasterName);
 
 				const generationTasks = [];
-				for (const template of dalleTemplates) {
+				for (const template of DALLE_TEMPLATES) {
 					for (let i = 0; i < count; i++) {
 						if (testGenerationState.shouldCancel) {
 							break;
@@ -1048,7 +1027,7 @@ async function main() {
 
 								const imageResult = await retryAsyncOperation(
 									generateImage,
-									maxRetries,
+									MAX_RETRIES,
 									target.toLowerCase(),
 									target,
 									metadata,
@@ -1260,259 +1239,9 @@ const userMeaningMap: UserMeaningMap = new Map();
 const broadcasterThemeMap: BroadcasterThemeMap = new Map();
 const broadcasterBannedGiftersMap: BroadcasterBannedGiftersMap = new Map();
 const ignoreListManager = new IgnoreListManager(ignoreFilePath);
-const messagesThrottle = throttledQueue(20, 30 * 1000, true);
-const openaiThrottle = throttledQueue(500, 60 * 1000, true);
-const imagesPerMinute = env.OPENAI_IMAGES_PER_MINUTE;
-const maxRetries = env.MAX_RETRIES;
-
-type DalleTemplate = {
-	name: string;
-	keyword: string;
-	description: string;
-};
-
-const structuredOutputPrompt = `Today is __DATE__.
-
-You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a detailed creative analysis, followed by a structured data format of that same analysis.
-
-PART 1 - CREATIVE ANALYSIS
-Create a detailed, flowing narrative analysis following these elements:
-
-1. Reason through the necessary steps to interpret the username thoroughly and creatively
-2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)
-3. Take usernames at face value, assume no typos are present
-
-PART 2 - STRUCTURED FORMAT
-Following the analysis, provide a structured breakdown of all elements:
-
-1. Avatar Details
-   - Facial expression
-   - Posture
-   - Looks: ALWAYS use "A cute blue round-faced avatar with blue skin" here
-   - Clothing (bias towards an orange hoodie unless thematically inappropriate)
-   - Accessories
-
-2. Style and Lighting
-   - Overall style
-   - Lighting specifications
-
-3. Objects in Scene (username banner with font details, additional items)
-   - Banner details
-     - Content (must ALWAYS be the username in quotes), additional text must go into "Additional objects"
-     - Font style
-     - Mood treatment
-   - Additional objects (relevant to the username)
-     - Types
-     - Positions
-     - Attributes
-
-4. Scene Elements
-   - Setting
-   - Mood
-   - Atmosphere
-   - Background
-   - Narrative (plot and avatar actions)
-     - Plot points
-     - Avatar actions
-
-[COPYRIGHT-SAFE GUIDELINES]
-- DO NOT directly reference specific copyrighted properties (e.g., "Dragon Ball," "Naruto").
-- INSTEAD, describe general themes, genres, or tropes related to the idea. Examples:
-  - "Super Saiyan" is fine, but avoid saying "Dragon Ball." Use "an epic anime transformation" or "legendary anime battle heroes" instead.
-  - Replace "Dragon Balls" with "mystical glowing orbs," "legendary spheres of power," or "energy relics."
-  - Replace "Dragon Ball battleground" with "an epic battlefield in an anime-inspired setting."
-- Be CREATIVE and HUMOROUS in delivering these tropes while ensuring they DO NOT name or overly describe specific copyrighted works.
-
-Guidelines:
-- Be creative, degenerate, exaggerating and absurd in your scenes - aim to create humor through scene and actions
-- Avoid ears, tails, or animal features unless username-relevant
-- Avoid hair/physical attributes unless username-connected
-- Be brave, provocative, literal, and original
-- Examples of desired tone:
-  - Username "diarrhea" turns to a bathroom scene with brown-stained walls, overflowing chocolate pudding toilet
-  - Username "vasectomy" turns into an avatar with a doctor holding a chainsaw, fleeing patient, "Vasectomy - No refunds" sign
-  - Username "breastmilk" turns into self-milking cow, baby with milk mustache, "Got Milk?" sign
-  - Username "littlesp00n" turns into an avatar in bed, giant spoon cuddling next to it, "little spoon" sign
-  - Username "goku_super_sayan04" becomes a playful homage to anime battle tropes, featuring glowing orbs and an energetic transformation scene.
-
-Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
-
-const themePrompt = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username, a detailed avatar and scene description. Your task is to boldly infuse these elements with a given theme, while maintaining the core identity of the original interpretation.
-
-Today's theme:
-__THEME__
-
-Guidelines:
-1. Make the theme a central and unmistakable element of the scene.
-2. Keep the original username AS-IS and unchanged.
-3. Maintain the original username interpretation.
-4. Adapt the avatar's descriptions to incorporate the theme, while preserving its core identity.
-4.1. For example - if the username was "Panzerfaust" and the original scene had a Panzerfaust weapon, it should still be present in the scene after adaptation.
-5. Transform the scene, background, and environment to fully embody the theme.
-
-Use the provided theme to write out reasoning steps in order to adapt the avatar and scene to the theme. 
-
-Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip the original analysis in your response.`;
-
-const dalleTemplates: DalleTemplate[] = [
-	{
-		name: 'oil painting',
-		keyword: 'oil',
-		description:
-			'Emphasizing rich, textured brush strokes and dramatic lighting, invoking the feel of traditional oil painting.',
-	},
-	{
-		name: 'watercolor',
-		keyword: 'watercolor',
-		description:
-			'Soft, fluid backgrounds with gentle transitions and delicate washes, creating an ethereal and dreamy atmosphere. Subtle textures emphasize organic imperfections.',
-	},
-	{
-		name: 'pixel art',
-		keyword: 'pixel',
-		description: 'Blocky and crisp with sharp lines and vibrant colors, evoking a retro, 16-bit pixel art style.',
-	},
-	{
-		name: 'glitch art illustration',
-		keyword: 'glitch',
-		description:
-			'Vibrant neon colors with jagged distortions and digital artifacts, creating a chaotic and futuristic atmosphere.',
-	},
-	{
-		name: 'neon graffiti illustration',
-		keyword: 'neon',
-		description:
-			'Bright, glowing colors and bold, jagged outlines capture the energy of neon street art, blending urban grit with vivid vibrancy. Layered textures of paint drips and spray patterns evoke a dynamic, rebellious spirit.',
-	},
-	{
-		name: 'Byzantine art illustration',
-		keyword: 'byzantine',
-		description:
-			'Flat, gilded backgrounds and highly stylized, geometric forms evoke the opulence and sacred symbolism of Byzantine art. Intricate patterns and jewel-like color contrasts add richness and reverence to the scene.',
-	},
-	{
-		name: 'expressionism drawing',
-		keyword: 'expressionism',
-		description:
-			'Bold, exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
-	},
-	{
-		name: 'charcoal drawing',
-		keyword: 'charcoal',
-		description:
-			'Monochromatic shading with rough, textured lines, emphasizing stark contrasts and sketch-like detail.',
-	},
-	{
-		name: 'Delicate pastel illustration',
-		keyword: 'pastel_illustration',
-		description:
-			'A delicate and soft illustration style inspired by nostalgic Japanese aesthetics. This style features minimalist lines, subtle gradients, and pastel-like tones, evoking a calm, approachable atmosphere. The artwork avoids anime tropes and emphasizes unique, playful elements, such as distinct features like blue skin, while retaining a cozy and charming aesthetic.',
-	},
-	{
-		name: 'Bold lines drawing with vivid colors',
-		keyword: 'takahashi',
-		description:
-			'Exaggerated expressions, bold lines, and vivid colors evoking the playful and dynamic style of 1980s anime.',
-	},
-	{
-		name: 'Detailed line work drawing',
-		keyword: 'sadamoto',
-		description:
-			'Detailed line work, subdued color palettes, and melancholic atmospheres, reflecting a moody and introspective style.',
-	},
-	{
-		name: 'fauvism painting',
-		keyword: 'fauvism',
-		description: 'Bold, vibrant colors with expressive brushstrokes, emphasizing abstraction and emotional intensity.',
-	},
-	{
-		name: 'flat design illustration',
-		keyword: 'flat',
-		description: 'Simplified shapes and bold colors, creating a clean and modern flat design aesthetic.',
-	},
-	{
-		name: 'sketch art',
-		keyword: 'sketch',
-		description: 'Loose, rough lines with an emphasis on expressive, hand-drawn quality and organic textures.',
-	},
-	{
-		name: 'Baroque oil painting',
-		keyword: 'baroque',
-		description:
-			'Dramatic compositions with rich, textured brushstrokes and dynamic lighting, emphasizing grandeur and emotional intensity. Elaborate details and strong contrasts between light and shadow evoke the opulence and theatricality of Baroque art, perfect for epic, storytelling scenes.',
-	},
-	{
-		name: 'Romanticism landscape painting',
-		keyword: 'romanticism',
-		description:
-			"Sweeping, emotional landscapes with bold, atmospheric effects. Romanticism emphasizes the sublime, portraying nature's grandeur and humanity's smallness. Dynamic skies, rugged mountains, and turbulent seas dominate, using rich, textured brushstrokes to create epic, evocative scenery.",
-	},
-	{
-		name: 'Art Nouveau stained glass',
-		keyword: 'art_nouveau',
-		description:
-			'Elegant compositions with sweeping organic curves and flowing natural forms. Rich jewel tones blend with delicate patterns inspired by botanical motifs. Ornate decorative elements and graceful linework create an atmosphere of refined beauty and sophisticated grandeur.',
-	},
-	{
-		name: 'Classical fresco painting',
-		keyword: 'fresco',
-		description:
-			'Monumental architectural scenes with soaring columns and vaulted ceilings, rendered in earthy pigments and soft matte textures characteristic of ancient wall paintings. Dramatic natural light streams through classical arches, illuminating weathered stone surfaces and creating depth through architectural perspective.',
-	},
-	{
-		name: 'Pointillism painting',
-		keyword: 'pointillism',
-		description:
-			'Vibrant scenes composed entirely of small, distinct dots of pure color, creating luminous optical effects and shimmering atmospheric light through careful dot placement.',
-	},
-	{
-		name: 'Art Deco illustration',
-		keyword: 'art_deco',
-		description:
-			'Bold geometric shapes and streamlined forms with metallic gold and silver accents. Symmetrical compositions featuring stepped forms and sunburst patterns create a sense of luxury and modern sophistication.',
-	},
-	{
-		name: 'Ukiyo-e woodblock print',
-		keyword: 'ukiyoe',
-		description:
-			'Bold outlines and flat areas of vibrant color with detailed patterns. Elegant compositions emphasize decorative elements and create depth through layered planes.',
-	},
-	{
-		name: 'Vaporwave illustration',
-		keyword: 'vaporwave',
-		description:
-			'Surreal compositions with bold gradients and glowing neon elements. Retro-futuristic elements blend with geometric patterns in saturated purple and teal tones.',
-	},
-	{
-		name: 'Risograph print',
-		keyword: 'risograph',
-		description:
-			'Bold two-tone compositions with slight misalignment and textural grain. Vibrant spot colors overlap to create unexpected combinations with a distinctive printed quality.',
-	},
-	{
-		name: 'Gouache painting',
-		keyword: 'gouache',
-		description:
-			'Matte, opaque colors with smooth transitions and precise edges. Rich pigments blend seamlessly while maintaining crisp details and bold graphic qualities.',
-	},
-	{
-		name: 'Acrylic painting',
-		keyword: 'acrylic',
-		description:
-			'Vivid, textured surfaces with bold brushstrokes and vibrant colors. Thick impasto layers create dynamic textures and expressive mark-making.',
-	},
-];
-
-/*
- * DALL-E throttling
- * Tier 1: 5 requests per minute
- * Tier 2: 7 requests per minute
- * Tier 3: 7 requests per minute
- * Tier 4: 15 requests per minute
- * Tier 5: 50 requests per minute
- * Tier 6: 200 requests per minute
- */
-const dalleThrottle = throttledQueue(imagesPerMinute, 60 * 1000, true);
+const messagesThrottle = throttledQueue(MESSAGE_THROTTLE_LIMIT, MESSAGE_THROTTLE_INTERVAL_MS, true);
+const openaiThrottle = throttledQueue(OPENAI_THROTTLE_LIMIT, OPENAI_THROTTLE_INTERVAL_MS, true);
+const dalleThrottle = throttledQueue(DALLE_THROTTLE_LIMIT, DALLE_THROTTLE_INTERVAL_MS, true);
 
 try {
 	const originalLog = console.log;
