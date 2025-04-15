@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as path from 'path';
-import { PathLike, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import { env } from './env';
 import OpenAI from 'openai';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
@@ -11,15 +11,31 @@ import { IgnoreListManager } from './managers/IgnoreListManager';
 import { CloudflareUploader } from './utils/CloudflareUploader';
 import { OpenAIManager } from './utils/OpenAIManager';
 import { nanoid } from 'nanoid';
-import { z } from 'zod';
-import { MAX_RETRIES, MESSAGE_THROTTLE_LIMIT, MESSAGE_THROTTLE_INTERVAL_MS, OPENAI_THROTTLE_LIMIT, OPENAI_THROTTLE_INTERVAL_MS, DALLE_THROTTLE_LIMIT, DALLE_THROTTLE_INTERVAL_MS } from './constants/config';
-import { STRUCTURED_OUTPUT_PROMPT, THEME_PROMPT, DALLE_IMAGE_PROMPT_TEMPLATE } from './constants/prompts';
+import {
+	MAX_RETRIES,
+	MESSAGE_THROTTLE_LIMIT,
+	MESSAGE_THROTTLE_INTERVAL_MS,
+	OPENAI_THROTTLE_LIMIT,
+	OPENAI_THROTTLE_INTERVAL_MS,
+	DALLE_THROTTLE_LIMIT,
+	DALLE_THROTTLE_INTERVAL_MS,
+} from './constants/config';
+import { DALLE_IMAGE_PROMPT_TEMPLATE } from './constants/prompts';
 import { DALLE_TEMPLATES, DalleTemplate } from './constants/styles';
 import { ThemeManager } from './managers/ThemeManager';
 import { MeaningManager } from './managers/MeaningManager';
 import { BannedGifterManager } from './managers/BannedGifterManager';
 import { ImageDataStore } from './managers/ImageDataStore';
-import { isAdminOrBroadcaster, ensureFileExists, getAppRootDir, exists, retryAsyncOperation, truncate } from './utils/helpers';
+import {
+	isAdminOrBroadcaster,
+	ensureFileExists,
+	getAppRootDir,
+	exists,
+	retryAsyncOperation,
+	truncate,
+	createSystemPrompt,
+} from './utils/helpers';
+import { finalSchema } from './schemas/imageSchemas';
 
 type SingleImage = {
 	image: string;
@@ -49,81 +65,16 @@ interface EventData {
 	isGifting?: boolean;
 }
 
-const analysisSchema = z.object({
-	reasoning: z.object({
-		reasoning_steps: z.array(z.string()).describe('The reasoning steps leading to the final conclusion.'),
-		answer: z.string().describe('The final answer, taking into account the reasoning steps.'),
-	}),
-	interpretation: z.string().describe('The final interpretation of the user input.'),
-});
-
 const testGenerationState = {
 	isRunning: false,
 	shouldCancel: false,
 };
 
-const sceneSchema = z.object({
-	interpretation: z.object({
-		literal: z.string(),
-		themes_ideas: z.array(z.string()),
-	}),
-	subject: z.object({
-		facial_expression: z.string(),
-		posture: z.string(),
-		clothes: z.object({
-			type: z.string(),
-			attributes: z.array(z.string()),
-		}),
-		accessories: z.array(z.string()),
-		looks: z.string(),
-	}),
-	lighting: z.object({
-		type: z.string(),
-		attributes: z.array(z.string()),
-	}),
-	objects: z.object({
-		banner: z
-			.object({
-				content: z.string(),
-				style: z.string(),
-				mood: z.string(),
-			})
-			.describe('A way to show the literal username in the scene'),
-		additional_objects: z
-			.array(
-				z.object({
-					name: z.string(),
-					type: z.string(),
-					position: z.string(),
-					attributes: z.array(z.string()),
-				}),
-			)
-			.describe('Objects in the scene that are relevant to the user or action to spice up the scene'),
-	}),
-	scene: z.object({
-		setting: z.string(),
-		mood: z.string(),
-		atmosphere: z.string(),
-		background: z.string(),
-		narrative: z.object({
-			plot: z.string(),
-			subject_action: z
-				.string()
-				.describe('The action the avatar is performing. Must be relevant to the scene and expressive.'),
-		}),
-	}),
-});
-
-const finalSchema = z.object({
-	step1: analysisSchema.describe('The analysis of the user input.'),
-	step2: sceneSchema.describe('The avatar and scene generated based on the analysis.'),
-});
-
 async function generateImage(
 	username: string,
 	userDisplayName: string,
 	metadata: Record<string, unknown> = {},
-	theme: string,
+	theme: string | undefined,
 	style: string | null = null,
 ): Promise<ImageGenerationResult> {
 	const uniqueId = nanoid(14);
@@ -146,13 +97,10 @@ async function generateImage(
 
 	console.log(`[${uniqueId}]`, userMeaning, `Using template: ${template.name}`);
 
-	// Now do another request but using structured output from OpenAI
 	const structuredAnalysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: STRUCTURED_OUTPUT_PROMPT
-				.replace('__DATE__', new Date().toISOString().slice(0, 10))
-				.replace('__STYLE_NAME__', template.name),
+			content: createSystemPrompt(new Date().toISOString().slice(0, 10), theme),
 		},
 		{
 			role: 'user',
@@ -161,38 +109,15 @@ async function generateImage(
 	];
 
 	let structuredOutput = await openaiThrottle(() => {
-		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output`);
+		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output (Theme: ${theme ?? 'None'})`);
 		return openAIManager.getChatCompletion(structuredAnalysisMessages, {
-			length: 1000,
+			length: 700,
 			schema: finalSchema,
 			schemaName: 'finalSchema',
 		});
 	});
 
-	if (theme) {
-		const themeMessages: OpenAI.ChatCompletionMessageParam[] = [
-			{
-				role: 'system',
-				content: THEME_PROMPT.replace('__THEME__', theme),
-			},
-			{
-				role: 'user',
-				content: JSON.stringify(structuredOutput),
-			},
-		];
-		structuredOutput = await openaiThrottle(() => {
-			console.log(`[${uniqueId}]`, userMeaning, `Adding theme: ${theme}`);
-			return openAIManager.getChatCompletion(themeMessages, {
-				length: 1000,
-				schema: finalSchema,
-				schemaName: 'finalSchema',
-			});
-		});
-
-		console.log(`[${uniqueId}]`, userMeaning, `New analysis:`, structuredOutput);
-	}
-
-	const analysisResult = `Literal username: ${userDisplayName}\n${structuredOutput}`;
+	const analysisResult = `Literal username: ${userDisplayName}\n${JSON.stringify(structuredOutput, null, 2)}`;
 
 	Object.assign(structuredOutput.step2, { style: template.description });
 	Object.assign(structuredOutput.step2, { style_description: template.name });
@@ -216,7 +141,7 @@ async function generateImage(
 
 	const updatedMetadata = {
 		...metadata,
-		theme: theme,
+		theme: theme ?? '',
 		style: style,
 	};
 
@@ -732,7 +657,7 @@ async function main() {
 					);
 				});
 			}),
-			createBotCommand('testgenerate', async (params, { userName, broadcasterName, say }) => {
+			createBotCommand('testall', async (params, { userName, broadcasterName, say }) => {
 				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}

@@ -9,6 +9,8 @@ Create a detailed, flowing narrative analysis following these elements:
 2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)
 3. Take usernames at face value, assume no typos are present
 
+__THEME_SECTION__
+
 PART 2 - STRUCTURED FORMAT
 Following the analysis, provide a structured breakdown of all elements:
 
@@ -19,13 +21,12 @@ Following the analysis, provide a structured breakdown of all elements:
    - Clothing (bias towards an orange hoodie unless thematically inappropriate)
    - Accessories
 
-2. Style and Lighting
+2. Style
    - Overall style
-   - Lighting specifications
 
 3. Objects in Scene (username banner with font details, additional items)
    - Banner details
-     - Content (must ALWAYS be the username in quotes), additional text must go into "Additional objects"
+     - Content (must ONLY be the username in quotes)
      - Font style
      - Mood treatment
    - Additional objects (relevant to the username)
@@ -64,22 +65,10 @@ Guidelines:
 
 Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
 
-export const THEME_PROMPT = `You are a master of thematic adaptation, skilled in transforming avatar descriptions and scenes to fully embody specific themes. You will receive an interpretation of a username, a detailed avatar and scene description. Your task is to boldly infuse these elements with a given theme, while maintaining the core identity of the original interpretation.
-
-Today's theme:
-__THEME__
-
-Guidelines:
-1. Make the theme a central and unmistakable element of the scene.
-2. Keep the original username AS-IS and unchanged.
-3. Maintain the original username interpretation.
-4. Adapt the avatar's descriptions to incorporate the theme, while preserving its core identity.
-4.1. For example - if the username was "Panzerfaust" and the original scene had a Panzerfaust weapon, it should still be present in the scene after adaptation.
-5. Transform the scene, background, and environment to fully embody the theme.
-
-Use the provided theme to write out reasoning steps in order to adapt the avatar and scene to the theme. 
-
-Be imaginative, detailed, and daring in your adaptations. Ensure the theme is prominently featured throughout your response. Skip the original analysis in your response.`;
+export const THEME_INSTRUCTION_BLOCK = `**Theme Requirement: __THEME__**
+This theme MUST be the central and unmistakable element of the scene.
+All generated elements (subject, objects, scene, narrative) MUST strongly reflect and be consistent with this theme.
+Ensure JSON details are modified accordingly.`;
 
 export const DALLE_IMAGE_PROMPT_TEMPLATE = `Your task is to create concise and focused image generation prompt using the provided structured data.
 
@@ -93,7 +82,7 @@ Start with the specific art medium/style from the JSON data. Use the EXACT STYLE
 These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
-1. Use the phrase "a cute BLUE round-faced avatar with blue skin" EXACTLY as written. DO NOT MODIFY IT.
+1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
 2. Follow IMMEDIATELY with the banner featuring the username.
 3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
 4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
@@ -105,4 +94,4 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 - AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
 
 Data:
-__DATA__`; 
+__DATA__`;

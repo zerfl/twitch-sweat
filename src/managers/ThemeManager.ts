@@ -46,7 +46,7 @@ export class ThemeManager {
 		}
 	}
 
-	getBroadcasterTheme(broadcaster: string): string {
-		return this.broadcasterThemeMap.get(broadcaster.toLowerCase()) || '';
+	getBroadcasterTheme(broadcaster: string): string | undefined {
+		return this.broadcasterThemeMap.get(broadcaster.toLowerCase());
 	}
-} 
+}

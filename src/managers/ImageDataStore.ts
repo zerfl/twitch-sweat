@@ -57,7 +57,4 @@ export class ImageDataStore {
 
 		return totalImages;
 	}
-
-	// Optional: Add a method to load data if needed elsewhere
-	// async loadImageData(): Promise<BroadcasterImages> { ... }
-} 
+}

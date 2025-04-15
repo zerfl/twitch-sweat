@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { PathLike, promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
+import { STRUCTURED_OUTPUT_PROMPT, THEME_INSTRUCTION_BLOCK } from '../constants/prompts';
 
 export const isAdminOrBroadcaster = (userName: string, broadcasterName: string, twitchAdmins: Set<string>): boolean => {
 	const lowerUserName = userName.toLowerCase();
@@ -81,4 +82,19 @@ export async function retryAsyncOperation<T, Args extends unknown[]>(
 	throw lastError;
 }
 
-export const truncate = (str: string, n: number): string => (str.length > n ? `${str.substring(0, n - 1)}...` : str); 
+export const truncate = (str: string, n: number): string => (str.length > n ? `${str.substring(0, n - 3)}...` : str);
+
+export function createSystemPrompt(date: string, theme?: string): string {
+	let prompt = STRUCTURED_OUTPUT_PROMPT.replace('__DATE__', date);
+
+	if (theme) {
+		const themeInstructions = THEME_INSTRUCTION_BLOCK.replace('__THEME__', theme);
+		prompt = prompt.replace('__THEME_SECTION__', themeInstructions);
+	} else {
+		prompt = prompt.replace('__THEME_SECTION__', '');
+	}
+
+	prompt = prompt.replace(/\n\n\n/g, '\n\n');
+
+	return prompt;
+}
