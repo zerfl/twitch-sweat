@@ -10,7 +10,7 @@ interface ImageGeneration {
 	revisedPrompt: string;
 	date: string;
 	style: string;
-	theme?: string;
+	theme: string;
 }
 
 type UserGenerations = Record<string, ImageGeneration[]>;
@@ -22,12 +22,20 @@ function formatDuration(ms: number): string {
 	return `${seconds}.${remainingMs.toString().padStart(3, '0')}s`;
 }
 
-function parseLine(line: string): { timestamp: string; id: string; username: string; action: string } | null {
+function parseLineWithId(line: string): { timestamp: string; id: string; username: string; action: string } | null {
 	const match = line.match(/\[(.*?)\] \[(.*?)\] (.*?) (.*)/);
 	if (!match) return null;
 
 	const [_, timestamp, id, username, action] = match;
 	return { timestamp, id, username, action };
+}
+
+function parseLineWithoutId(line: string): { timestamp: string; username: string; action: string } | null {
+	const match = line.match(/\[(.*?)\] (.*?) (.*)/);
+	if (!match) return null;
+
+	const [_, timestamp, username, action] = match;
+	return { timestamp, username, action };
 }
 
 function extractImageUrl(line: string): string | null {
@@ -65,19 +73,26 @@ function extractTheme(line: string): string | null {
 	return null;
 }
 
-async function processLog() {
+function isLegacyDateFormat(timestamp: string): boolean {
+	const idStartDate = new Date('2024-04-25T22:42:07.453Z');
+	const lineDate = new Date(timestamp);
+	return lineDate < idStartDate;
+}
+
+async function processLog(logFilePath: string, outputFilePath: string) {
 	console.log('Starting log processing...');
+	console.log(`Input log file: ${logFilePath}`);
+	console.log(`Output file: ${outputFilePath}`);
 	const startTime = Date.now();
 
 	console.log('Creating empty output file...');
-	fs.writeFileSync(path.join(__dirname, '../data/logImages.json'), JSON.stringify({}, null, 2));
+	fs.writeFileSync(outputFilePath, JSON.stringify({}, null, 2));
 	console.log('Empty file created');
 
 	console.log('Reading and processing log file backwards...');
 	const processStartTime = Date.now();
-	const logPath = path.join(__dirname, '../data/log.txt');
 
-	const stats = fs.statSync(logPath);
+	const stats = fs.statSync(logFilePath);
 	const fileSize = stats.size;
 	console.log(`Log file size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
 
@@ -86,12 +101,15 @@ async function processLog() {
 	let imageUploadLines = 0;
 	let revisedPromptLines = 0;
 	let creatingImageLines = 0;
+	let analysingTextLines = 0;
 	let usingTemplateLines = 0;
 	let themeLines = 0;
-	let completeGenerations = 0;
+	let completeGenerationsWithId = 0;
+	let completeGenerationsWithoutId = 0;
 
 	const userGenerations: UserGenerations = {};
-	const pendingGenerations: Map<
+
+	const pendingGenerationsWithId: Map<
 		string,
 		{
 			username: string;
@@ -99,12 +117,27 @@ async function processLog() {
 			revisedPrompt?: string;
 			style?: string;
 			theme?: string;
+			timestamp: string;
 		}
 	> = new Map();
 
-	const logContent = fs.readFileSync(logPath, 'utf-8');
+	const pendingGenerationsWithoutId: Map<
+		string,
+		{
+			imageUrl?: string;
+			revisedPrompt?: string;
+			style?: string;
+			theme?: string;
+			timestamp: string;
+			lastUpdated: Date;
+		}
+	> = new Map();
+
+	const logContent = fs.readFileSync(logFilePath, 'utf-8');
 	const logLines = logContent.split('\n').filter((line) => line.trim() !== '');
 	console.log(`Found ${logLines.length} non-empty lines`);
+
+	const TIME_WINDOW_MS = 60 * 1000;
 
 	for (let i = logLines.length - 1; i >= 0; i--) {
 		const line = logLines[i];
@@ -115,71 +148,171 @@ async function processLog() {
 			console.log(`Processed ${linesProcessed}/${logLines.length} lines (${percent}%)`);
 		}
 
-		const parsed = parseLine(line);
-		if (!parsed) continue;
-		validLines++;
+		const parsedWithId = parseLineWithId(line);
 
-		const { timestamp, id, username, action } = parsed;
+		if (parsedWithId) {
+			validLines++;
+			const { timestamp, id, username, action } = parsedWithId;
 
-		if (action.includes('Image uploaded:')) {
-			imageUploadLines++;
-			const imageUrl = extractImageUrl(line);
-			if (imageUrl) {
-				pendingGenerations.set(id, {
-					username,
-					imageUrl,
-				});
+			if (action.includes('Image uploaded:')) {
+				imageUploadLines++;
+				const imageUrl = extractImageUrl(line);
+				if (imageUrl) {
+					pendingGenerationsWithId.set(id, {
+						username,
+						imageUrl,
+						timestamp,
+					});
+				}
+			} else if (action.includes('Revised prompt')) {
+				revisedPromptLines++;
+				const revisedPrompt = extractRevisedPrompt(line);
+
+				if (revisedPrompt && pendingGenerationsWithId.has(id)) {
+					pendingGenerationsWithId.get(id)!.revisedPrompt = revisedPrompt;
+				}
+			} else if (action.includes('Creating image')) {
+				creatingImageLines++;
+			} else if (action.includes('Using template:')) {
+				usingTemplateLines++;
+				const style = extractStyle(line);
+
+				if (style && pendingGenerationsWithId.has(id)) {
+					pendingGenerationsWithId.get(id)!.style = style;
+				}
+			} else if (action.includes('Requesting structured output') || action.includes('Adding theme:')) {
+				const theme = extractTheme(line);
+
+				if (theme !== null) {
+					themeLines++;
+					if (pendingGenerationsWithId.has(id)) {
+						pendingGenerationsWithId.get(id)!.theme = theme;
+					}
+				}
 			}
-		} else if (action.includes('Revised prompt')) {
-			revisedPromptLines++;
-			const revisedPrompt = extractRevisedPrompt(line);
 
-			if (revisedPrompt && pendingGenerations.has(id)) {
-				pendingGenerations.get(id)!.revisedPrompt = revisedPrompt;
+			if (pendingGenerationsWithId.has(id)) {
+				const generation = pendingGenerationsWithId.get(id)!;
+
+				if (generation.imageUrl && generation.revisedPrompt && generation.style) {
+					if (!userGenerations[username]) {
+						userGenerations[username] = [];
+					}
+
+					userGenerations[username].push({
+						image: generation.imageUrl,
+						revisedPrompt: generation.revisedPrompt,
+						date: timestamp,
+						style: generation.style,
+						theme: generation.theme || '',
+					});
+
+					completeGenerationsWithId++;
+					pendingGenerationsWithId.delete(id);
+				}
 			}
-		} else if (action.includes('Creating image')) {
-			creatingImageLines++;
-			// if (pendingGenerations.has(id)) {
-			//
-			// }
-		} else if (action.includes('Using template:')) {
-			usingTemplateLines++;
-			const style = extractStyle(line);
+		} else {
+			const parsedWithoutId = parseLineWithoutId(line);
 
-			if (style && pendingGenerations.has(id)) {
-				pendingGenerations.get(id)!.style = style;
-			}
-		} else if (action.includes('Requesting structured output') || action.includes('Adding theme:')) {
-			const theme = extractTheme(line);
+			if (parsedWithoutId) {
+				validLines++;
+				const { timestamp, username, action } = parsedWithoutId;
+				const lineDate = new Date(timestamp);
 
-			if (theme) {
-				themeLines++;
-				if (pendingGenerations.has(id)) {
-					pendingGenerations.get(id)!.theme = theme;
+				if (isLegacyDateFormat(timestamp)) {
+					if (action.includes('Image uploaded:')) {
+						imageUploadLines++;
+						const imageUrl = extractImageUrl(line);
+						if (imageUrl) {
+							pendingGenerationsWithoutId.set(username, {
+								imageUrl,
+								timestamp,
+								lastUpdated: lineDate,
+							});
+						}
+					} else if (action.includes('Revised prompt')) {
+						revisedPromptLines++;
+						const revisedPrompt = extractRevisedPrompt(line);
+
+						if (revisedPrompt && pendingGenerationsWithoutId.has(username)) {
+							const pending = pendingGenerationsWithoutId.get(username)!;
+
+							if (lineDate.getTime() - pending.lastUpdated.getTime() < TIME_WINDOW_MS) {
+								pending.revisedPrompt = revisedPrompt;
+								pending.lastUpdated = lineDate;
+							}
+						}
+					} else if (action.includes('Analysing text:')) {
+						analysingTextLines++;
+					} else if (action.includes('Using template:')) {
+						usingTemplateLines++;
+						const style = extractStyle(line);
+
+						if (style && pendingGenerationsWithoutId.has(username)) {
+							const pending = pendingGenerationsWithoutId.get(username)!;
+
+							if (lineDate.getTime() - pending.lastUpdated.getTime() < TIME_WINDOW_MS) {
+								pending.style = style;
+								pending.lastUpdated = lineDate;
+							}
+						}
+					} else if (action.includes('Requesting structured output') || action.includes('Adding theme:')) {
+						const theme = extractTheme(line);
+
+						if (theme !== null) {
+							themeLines++;
+							if (pendingGenerationsWithoutId.has(username)) {
+								const pending = pendingGenerationsWithoutId.get(username)!;
+
+								if (lineDate.getTime() - pending.lastUpdated.getTime() < TIME_WINDOW_MS) {
+									pending.theme = theme;
+									pending.lastUpdated = lineDate;
+								}
+							}
+						}
+					}
+
+					// For old format, we only require imageUrl and revisedPrompt
+					if (pendingGenerationsWithoutId.has(username)) {
+						const generation = pendingGenerationsWithoutId.get(username)!;
+
+						if (generation.imageUrl && generation.revisedPrompt) {
+							if (!userGenerations[username]) {
+								userGenerations[username] = [];
+							}
+
+							userGenerations[username].push({
+								image: generation.imageUrl,
+								revisedPrompt: generation.revisedPrompt,
+								date: timestamp,
+								style: generation.style || '',
+								theme: generation.theme || '',
+							});
+
+							completeGenerationsWithoutId++;
+							pendingGenerationsWithoutId.delete(username);
+						}
+					}
 				}
 			}
 		}
+	}
 
-		if (pendingGenerations.has(id)) {
-			const generation = pendingGenerations.get(id)!;
-
-			if (generation.imageUrl && generation.revisedPrompt && generation.style) {
-				if (!userGenerations[username]) {
-					userGenerations[username] = [];
-				}
-
-				userGenerations[username].push({
-					image: generation.imageUrl,
-					revisedPrompt: generation.revisedPrompt,
-					date: timestamp,
-					style: generation.style,
-					theme: generation.theme || '',
-				});
-
-				completeGenerations++;
-
-				pendingGenerations.delete(id);
+	for (const [username, generation] of pendingGenerationsWithoutId.entries()) {
+		if (generation.imageUrl && generation.revisedPrompt) {
+			if (!userGenerations[username]) {
+				userGenerations[username] = [];
 			}
+
+			userGenerations[username].push({
+				image: generation.imageUrl,
+				revisedPrompt: generation.revisedPrompt,
+				date: generation.timestamp,
+				style: generation.style || '',
+				theme: generation.theme || '',
+			});
+
+			completeGenerationsWithoutId++;
 		}
 	}
 
@@ -189,20 +322,32 @@ async function processLog() {
 	console.log(`   - Image upload entries: ${imageUploadLines}`);
 	console.log(`   - Revised prompt entries: ${revisedPromptLines}`);
 	console.log(`   - Creating image entries: ${creatingImageLines}`);
+	console.log(`   - Analysing text entries: ${analysingTextLines}`);
 	console.log(`   - Using template entries: ${usingTemplateLines}`);
 	console.log(`   - Theme entries: ${themeLines}`);
-	console.log(`   - Complete generations found: ${completeGenerations}`);
+	console.log(`   - Complete generations with ID: ${completeGenerationsWithId}`);
+	console.log(`   - Complete generations without ID: ${completeGenerationsWithoutId}`);
+	console.log(`   - Total complete generations: ${completeGenerationsWithId + completeGenerationsWithoutId}`);
 	console.log(`   - Unique users: ${Object.keys(userGenerations).length}`);
 
 	console.log('Writing results to output file...');
 	const writeStartTime = Date.now();
-	fs.writeFileSync(path.join(__dirname, '../data/logImages.json'), JSON.stringify(userGenerations, null, 2));
+	fs.writeFileSync(outputFilePath, JSON.stringify(userGenerations, null, 2));
 	const writeDuration = Date.now() - writeStartTime;
-	console.log(`Results saved to data/logImages.json in ${formatDuration(writeDuration)}`);
+	console.log(`Results saved to ${outputFilePath} in ${formatDuration(writeDuration)}`);
 
 	const totalDuration = Date.now() - startTime;
 	console.log(`\nLog processing complete in ${formatDuration(totalDuration)}`);
-	console.log(`   Found ${completeGenerations} image generations for ${Object.keys(userGenerations).length} users`);
+	console.log(
+		`   Found ${completeGenerationsWithId + completeGenerationsWithoutId} image generations for ${Object.keys(userGenerations).length} users`,
+	);
 }
 
-processLog();
+const args = process.argv.slice(2);
+const logFilePath = args[0] || path.join(__dirname, '../data/log.txt');
+
+const logFileDir = path.dirname(logFilePath);
+const logFileName = path.basename(logFilePath, path.extname(logFilePath));
+const outputFilePath = path.join(logFileDir, `${logFileName}Images.json`);
+
+processLog(logFilePath, outputFilePath);
