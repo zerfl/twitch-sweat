@@ -643,17 +643,29 @@ async function main() {
 					return say(params.join(' '));
 				});
 			}),
-			createBotCommand('uguu', async (_params, { say, userName }) => {
-				if (userName.toLowerCase() !== 'partyhorst') return;
+			createBotCommand('uguu', async (_params, { say, userName, broadcasterName }) => {
+				// myndzi would never
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
+					return;
+				}
 
 				await messagesThrottle(() => {
 					return say(`!uguu`);
 				});
 			}),
-			createBotCommand('myai', async (_params, { userName, broadcasterName, say }) => {
+			createBotCommand('quack', async (_params, { say, userName, broadcasterName }) => {
+				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
+					return;
+				}
+
+				await messagesThrottle(() => {
+					return say(`!quack`);
+				});
+			}),
+			createBotCommand('myai', async (_params, { userName, say }) => {
 				await messagesThrottle(() => {
 					return say(
-						`@${userName} You can browse your AI sweatlings in the discord or at https://www.curvyspiderwife.com/channel/${broadcasterName}/user/${userName} dnkLove`,
+						`@${userName} Check your sweatlings at https://www.curvyspiderwife.com/user/${userName} or in Discord dnkLove`,
 					);
 				});
 			}),
