@@ -20,7 +20,19 @@ const envSchema = Joi.object()
 		CLOUDFLARE_API_TOKEN: Joi.string().required(),
 		CLOUDFLARE_IMAGES_URL: Joi.string().uri().required(),
 		CLOUDFLARE_AI_GATEWAY: Joi.string().uri().optional(),
-		DATABASE_URL: Joi.string().uri(),
+		// PostgreSQL Connection (individual params)
+		DB_HOST: Joi.string().hostname().default('localhost'),
+		DB_PORT: Joi.number().port().default(5432),
+		DB_USER: Joi.string().required(),
+		DB_PASSWORD: Joi.string().required(),
+		DB_NAME: Joi.string().required(),
+		DB_SSL_REQUIRED: Joi.boolean().default(false),
+		// DATABASE_URL is optional if individual params are provided
+		DATABASE_URL: Joi.string().uri().optional(),
+		// Discord Reaction Emojis
+		DISCORD_UPVOTE_EMOJI: Joi.string().default('👍'),
+		DISCORD_DOWNVOTE_EMOJI: Joi.string().default('👎'),
+		NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
 	})
 	.unknown();
 
@@ -48,5 +60,14 @@ export const env = envVars as {
 	CLOUDFLARE_API_TOKEN: string;
 	CLOUDFLARE_IMAGES_URL: string;
 	CLOUDFLARE_AI_GATEWAY?: string;
-	DATABASE_URL: string;
+	DB_HOST: string;
+	DB_PORT: number;
+	DB_USER: string;
+	DB_PASSWORD: string;
+	DB_NAME: string;
+	DB_SSL_REQUIRED: boolean;
+	DATABASE_URL?: string; // Now optional
+	DISCORD_UPVOTE_EMOJI: string;
+	DISCORD_DOWNVOTE_EMOJI: string;
+	NODE_ENV: string;
 };
