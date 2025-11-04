@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { IgnoreListManager } from '../src/utils/IgnoreListManager';
+import { IgnoreListManager } from '../src/managers/IgnoreListManager';
 
 describe('IgnoreListManager', () => {
 	let ignoreListManager: IgnoreListManager;

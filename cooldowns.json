@@ -1,0 +1,14 @@
+{
+    "globalCooldownMap": [],
+    "userCooldownMap": [
+        {
+            "broadcaster": "broadcaster1",
+            "users": [
+                {
+                    "user": "user1",
+                    "timestamp": 1762292334870
+                }
+            ]
+        }
+    ]
+}
