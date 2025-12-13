@@ -1,15 +1,18 @@
 # Use a smaller Node.js (Alpine) base image
 FROM node:20-alpine
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 # Create app directory
 WORKDIR /usr/src/app
 
 # Install app dependencies
-# Copy package.json and package-lock.json
-COPY package*.json ./
+# Copy package.json and pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies including 'tsx' for running TypeScript directly
-RUN npm install
+# Install dependencies using pnpm
+RUN pnpm install --frozen-lockfile
 
 # Bundle app source
 COPY . .
