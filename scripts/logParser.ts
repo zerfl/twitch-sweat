@@ -339,7 +339,9 @@ async function processLog(logFilePath: string, outputFilePath: string) {
 	const totalDuration = Date.now() - startTime;
 	console.log(`\nLog processing complete in ${formatDuration(totalDuration)}`);
 	console.log(
-		`   Found ${completeGenerationsWithId + completeGenerationsWithoutId} image generations for ${Object.keys(userGenerations).length} users`,
+		`   Found ${completeGenerationsWithId + completeGenerationsWithoutId} image generations for ${
+			Object.keys(userGenerations).length
+		} users`,
 	);
 }
 
