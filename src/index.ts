@@ -148,7 +148,7 @@ async function generateImage(
 	const uploadedImage = await cfUploader.uploadImageFromUrl(url, updatedMetadata);
 
 	if (!uploadedImage.success) {
-		console.log(`[${uniqueId}]`, userMeaning, `Image upload failed: ${uploadedImage.errors}`);
+		console.log(`[${uniqueId}]`, userMeaning, 'Image upload failed:', uploadedImage.errors);
 		return { success: false, message: 'Error' };
 	}
 
