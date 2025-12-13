@@ -20,7 +20,12 @@ import {
 	DALLE_THROTTLE_LIMIT,
 	DALLE_THROTTLE_INTERVAL_MS,
 } from './constants/config';
-import { DALLE_IMAGE_PROMPT_TEMPLATE } from './constants/prompts';
+import {
+	DALLE_IMAGE_PROMPT_TEMPLATE,
+	STRUCTURED_OUTPUT_PROMPT,
+	STRUCTURED_OUTPUT_PROMPT_NO_BANNER,
+	DALLE_IMAGE_PROMPT_TEMPLATE_NO_BANNER,
+} from './constants/prompts';
 import { DALLE_TEMPLATES, DalleTemplate } from './constants/styles';
 import { ThemeManager } from './managers/ThemeManager';
 import { MeaningManager } from './managers/MeaningManager';
@@ -35,7 +40,7 @@ import {
 	truncate,
 	createSystemPrompt,
 } from './utils/helpers';
-import { finalSchema } from './schemas/imageSchemas';
+import { finalSchema, finalSchemaNoBanner } from './schemas/imageSchemas';
 
 type SingleImage = {
 	image: string;
@@ -76,6 +81,7 @@ async function generateImage(
 	metadata: Record<string, unknown> = {},
 	theme: string | undefined,
 	style: string | null = null,
+	attempt: number = 1,
 ): Promise<ImageGenerationResult> {
 	const uniqueId = nanoid(14);
 
@@ -97,10 +103,15 @@ async function generateImage(
 
 	console.log(`[${uniqueId}]`, userMeaning, `Using template: ${template.name}`);
 
+	const isRetry = attempt > 1;
+	const promptTemplate = isRetry ? STRUCTURED_OUTPUT_PROMPT_NO_BANNER : STRUCTURED_OUTPUT_PROMPT;
+	const schema = isRetry ? finalSchemaNoBanner : finalSchema;
+	const dalleTemplate = isRetry ? DALLE_IMAGE_PROMPT_TEMPLATE_NO_BANNER : DALLE_IMAGE_PROMPT_TEMPLATE;
+
 	const structuredAnalysisMessages: OpenAI.ChatCompletionMessageParam[] = [
 		{
 			role: 'system',
-			content: createSystemPrompt(new Date().toISOString().slice(0, 10), theme),
+			content: createSystemPrompt(new Date().toISOString().slice(0, 10), theme, promptTemplate),
 		},
 		{
 			role: 'user',
@@ -112,8 +123,8 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output (Theme: ${theme ?? 'None'})`);
 		return openAIManager.getChatCompletion(structuredAnalysisMessages, {
 			length: 700,
-			schema: finalSchema,
-			schemaName: 'finalSchema',
+			schema: schema,
+			schemaName: isRetry ? 'finalSchemaNoBanner' : 'finalSchema',
 		});
 	});
 
@@ -128,7 +139,7 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
 			model: 'dall-e-3',
-			prompt: DALLE_IMAGE_PROMPT_TEMPLATE.replace('__DATA__', imagePrompt),
+			prompt: dalleTemplate.replace('__DATA__', imagePrompt),
 			quality: 'standard',
 			size: '1024x1024',
 			response_format: 'url',
@@ -180,7 +191,15 @@ async function handleEventAndSendImageMessage(
 	try {
 		const metadata = { source: 'twitch', channel: broadcasterName, target: userName, trigger: verb };
 		const theme = themeManager.getBroadcasterTheme(broadcasterName);
-		imageResult = await retryAsyncOperation(generateImage, MAX_RETRIES, userName, userDisplayName, metadata, theme);
+		imageResult = await retryAsyncOperation(
+			generateImage,
+			MAX_RETRIES,
+			userName,
+			userDisplayName,
+			metadata,
+			theme,
+			null,
+		);
 	} catch (error) {
 		imageResult = { success: false, message: 'Error' };
 	}
@@ -321,6 +340,7 @@ async function main() {
 						param,
 						metadata,
 						theme,
+						null,
 					);
 					if (!imageResult.success) {
 						await message.reply(`Unable to generate image for ${param}`);

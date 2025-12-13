@@ -49,7 +49,7 @@ export async function exists(f: PathLike): Promise<boolean> {
 }
 
 export async function retryAsyncOperation<T, Args extends unknown[]>(
-	asyncOperation: (...args: Args) => Promise<T>,
+	asyncOperation: (...args: [...Args, number]) => Promise<T>,
 	maxRetries: number = 3,
 	...args: Args
 ): Promise<T> {
@@ -57,7 +57,8 @@ export async function retryAsyncOperation<T, Args extends unknown[]>(
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
-			return await asyncOperation(...args);
+			const currentAttempt = attempt + 1;
+			return await asyncOperation(...args, currentAttempt);
 		} catch (error) {
 			if (error instanceof Error) {
 				lastError = error;
@@ -84,8 +85,12 @@ export async function retryAsyncOperation<T, Args extends unknown[]>(
 
 export const truncate = (str: string, n: number): string => (str.length > n ? `${str.substring(0, n - 3)}...` : str);
 
-export function createSystemPrompt(date: string, theme?: string): string {
-	let prompt = STRUCTURED_OUTPUT_PROMPT.replace('__DATE__', date);
+export function createSystemPrompt(
+	date: string,
+	theme?: string,
+	basePrompt: string = STRUCTURED_OUTPUT_PROMPT,
+): string {
+	let prompt = basePrompt.replace('__DATE__', date);
 
 	if (theme) {
 		const themeInstructions = THEME_INSTRUCTION_BLOCK.replace('__THEME__', theme);

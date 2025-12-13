@@ -48,7 +48,43 @@ export const sceneSchema = z.object({
 	}),
 });
 
+export const sceneSchemaNoBanner = z.object({
+	themes_ideas: z.array(z.string()),
+	subject: z.object({
+		facial_expression: z.string(),
+		posture: z.string(),
+		clothes: z.object({
+			type: z.string(),
+			attributes: z.array(z.string()),
+		}),
+		accessories: z.array(z.string()),
+		looks: z.string(),
+	}),
+	objects: z.object({
+		additional_objects: z
+			.array(z.string())
+			.describe(
+				'Objects in the scene that are relevant to the user or action to spice up the scene. A single object is a concise single sentence. Maximum of 3 objects.',
+			),
+	}),
+	scene: z.object({
+		setting: z.string(),
+		atmosphere: z.string(),
+		background: z.string(),
+		narrative: z.object({
+			subject_action: z
+				.string()
+				.describe('The action the avatar is performing. Must be relevant to the scene and expressive.'),
+		}),
+	}),
+});
+
 export const finalSchema = z.object({
 	step1: analysisSchema.describe('The analysis of the user input.'),
 	step2: sceneSchema.describe('The avatar and scene generated based on the analysis.'),
+});
+
+export const finalSchemaNoBanner = z.object({
+	step1: analysisSchema.describe('The analysis of the user input.'),
+	step2: sceneSchemaNoBanner.describe('The avatar and scene generated based on the analysis.'),
 });
