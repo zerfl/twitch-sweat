@@ -146,6 +146,8 @@ async function generateImage(
 		]);
 	});
 
+	console.log(`[${uniqueId}]`, userMeaning, 'Revised prompt', finalImagePrompt);
+
 	const image = await dalleThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
