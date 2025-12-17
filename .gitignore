@@ -41,4 +41,6 @@ next-env.d.ts
 # Environment variables
 .env.local
 .env
-data/
+
+data/**
+!data/.gitkeep
