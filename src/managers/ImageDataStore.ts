@@ -4,7 +4,7 @@ import { PathLike, promises as fs } from 'fs';
 type SingleImage = {
 	image: string;
 	analysis: string;
-	revisedPrompt: string;
+	prompt: string;
 	date: string;
 };
 

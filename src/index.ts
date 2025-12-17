@@ -1,59 +1,58 @@
-import 'dotenv/config';
-import * as path from 'path';
-import { promises as fs } from 'fs';
-import { env } from './env';
-import OpenAI from 'openai';
 import { AccessToken, InvalidTokenError, RefreshingAuthProvider } from '@twurple/auth';
 import { Bot, createBotCommand } from '@twurple/easy-bot';
-import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials, TextChannel } from 'discord.js';
-import throttledQueue from 'throttled-queue';
-import { IgnoreListManager } from './managers/IgnoreListManager';
-import { CloudflareUploader } from './utils/CloudflareUploader';
-import { OpenAIManager } from './utils/OpenAIManager';
+import { ActivityType, Client as DiscordClient, Events, GatewayIntentBits, Partials } from 'discord.js';
+import 'dotenv/config';
+import { promises as fs } from 'fs';
 import { nanoid } from 'nanoid';
+import OpenAI from 'openai';
+import * as path from 'path';
+import throttledQueue from 'throttled-queue';
 import {
-	MAX_RETRIES,
-	MESSAGE_THROTTLE_LIMIT,
-	MESSAGE_THROTTLE_INTERVAL_MS,
-	OPENAI_THROTTLE_LIMIT,
-	OPENAI_THROTTLE_INTERVAL_MS,
-	DALLE_THROTTLE_LIMIT,
 	DALLE_THROTTLE_INTERVAL_MS,
+	DALLE_THROTTLE_LIMIT,
+	MAX_RETRIES,
+	MESSAGE_THROTTLE_INTERVAL_MS,
+	MESSAGE_THROTTLE_LIMIT,
+	OPENAI_THROTTLE_INTERVAL_MS,
+	OPENAI_THROTTLE_LIMIT,
 } from './constants/config';
 import {
 	DALLE_IMAGE_PROMPT_TEMPLATE,
+	DALLE_IMAGE_PROMPT_TEMPLATE_NO_BANNER,
 	STRUCTURED_OUTPUT_PROMPT,
 	STRUCTURED_OUTPUT_PROMPT_NO_BANNER,
-	DALLE_IMAGE_PROMPT_TEMPLATE_NO_BANNER,
 } from './constants/prompts';
 import { DALLE_TEMPLATES, DalleTemplate } from './constants/styles';
-import { ThemeManager } from './managers/ThemeManager';
-import { MeaningManager } from './managers/MeaningManager';
+import { env } from './env';
 import { BannedGifterManager } from './managers/BannedGifterManager';
+import { IgnoreListManager } from './managers/IgnoreListManager';
 import { ImageDataStore } from './managers/ImageDataStore';
+import { MeaningManager } from './managers/MeaningManager';
+import { ThemeManager } from './managers/ThemeManager';
+import { finalSchema, finalSchemaNoBanner } from './schemas/imageSchemas';
+import { CloudflareUploader, CloudflareUploadResponse } from './utils/CloudflareUploader';
 import {
-	isAdminOrBroadcaster,
+	createSystemPrompt,
 	ensureFileExists,
-	getAppRootDir,
 	exists,
+	getAppRootDir,
+	isAdminOrBroadcaster,
 	retryAsyncOperation,
 	truncate,
-	createSystemPrompt,
 } from './utils/helpers';
-import { finalSchema, finalSchemaNoBanner } from './schemas/imageSchemas';
+import { OpenAIManager } from './utils/OpenAIManager';
 
 type SingleImage = {
 	image: string;
 	analysis: string;
-	revisedPrompt: string;
-	date: string;
+	prompt: string;
 };
 
 type ImageGenerationSuccess = {
 	success: true;
 	message: string;
 	analysis: string;
-	revisedPrompt: string;
+	prompt: string;
 };
 
 type ImageGenerationError = {
@@ -121,8 +120,8 @@ async function generateImage(
 
 	let structuredOutput = await openaiThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output (Theme: ${theme ?? 'None'})`);
-		return openAIManager.getChatCompletion(structuredAnalysisMessages, {
-			length: 700,
+		return openAIManager.generateResponse(structuredAnalysisMessages as unknown as OpenAI.Responses.ResponseInput, {
+			max_output_tokens: 700,
 			schema: schema,
 			schemaName: isRetry ? 'finalSchemaNoBanner' : 'finalSchema',
 		});
@@ -135,20 +134,34 @@ async function generateImage(
 
 	const imagePrompt = JSON.stringify(structuredOutput.step2);
 
+	const initialPrompt = dalleTemplate.replace('__DATA__', imagePrompt);
+
+	const finalImagePrompt = await openaiThrottle(() => {
+		console.log(`[${uniqueId}]`, userMeaning, `Generating final image prompt.`);
+		return openAIManager.generateResponse([
+			{
+				role: 'user',
+				content: initialPrompt,
+			},
+		]);
+	});
+
 	const image = await dalleThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
-			model: 'dall-e-3',
-			prompt: dalleTemplate.replace('__DATA__', imagePrompt),
-			quality: 'standard',
+			model: 'gpt-image-1.5',
+			prompt: finalImagePrompt,
+			quality: 'medium',
 			size: '1024x1024',
-			response_format: 'url',
 		});
 	});
 
 	console.log(`[${uniqueId}]`, userMeaning, 'Uploading image');
-	console.log(`[${uniqueId}]`, userMeaning, 'Revised prompt', image.data[0].revised_prompt);
-	const url = image.data[0].url!;
+
+	if (!image.data || image.data.length === 0) {
+		console.log(`[${uniqueId}]`, userMeaning, 'Image generation failed: No data returned');
+		return { success: false, message: 'No image returned' };
+	}
 
 	const updatedMetadata = {
 		...metadata,
@@ -156,7 +169,16 @@ async function generateImage(
 		style: style,
 	};
 
-	const uploadedImage = await cfUploader.uploadImageFromUrl(url, updatedMetadata);
+	let uploadedImage: CloudflareUploadResponse;
+
+	if (image.data[0].b64_json) {
+		uploadedImage = await cfUploader.uploadImageFromBase64(image.data[0].b64_json, updatedMetadata);
+	} else if (image.data[0].url) {
+		uploadedImage = await cfUploader.uploadImageFromUrl(image.data[0].url, updatedMetadata);
+	} else {
+		console.log(`[${uniqueId}]`, userMeaning, 'Image generation failed: No image data found (url or b64_json)');
+		return { success: false, message: 'No image data returned' };
+	}
 
 	if (!uploadedImage.success) {
 		console.log(`[${uniqueId}]`, userMeaning, 'Image upload failed:', uploadedImage.errors);
@@ -170,7 +192,7 @@ async function generateImage(
 		success: true,
 		message: finalUrl,
 		analysis: analysisResult,
-		revisedPrompt: image.data[0].revised_prompt!,
+		prompt: finalImagePrompt,
 	};
 }
 
@@ -217,7 +239,7 @@ async function handleEventAndSendImageMessage(
 	await imageDataStore.storeImageData(broadcasterName, userName, {
 		image: imageResult.message,
 		analysis: imageResult.analysis,
-		revisedPrompt: imageResult.revisedPrompt,
+		prompt: imageResult.prompt,
 		date: new Date().toISOString(),
 	});
 
@@ -349,7 +371,7 @@ async function main() {
 					await imageDataStore.storeImageData(broadcasterName, param, {
 						image: imageResult.message,
 						analysis: imageResult.analysis,
-						revisedPrompt: imageResult.revisedPrompt,
+						prompt: imageResult.prompt,
 						date: new Date().toISOString(),
 					});
 
@@ -456,7 +478,7 @@ async function main() {
 				await imageDataStore.storeImageData(broadcasterName, params[0], {
 					image: imageResult.message,
 					analysis: imageResult.analysis,
-					revisedPrompt: imageResult.revisedPrompt,
+					prompt: imageResult.prompt,
 					date: new Date().toISOString(),
 				});
 
@@ -782,7 +804,7 @@ async function main() {
 								await imageDataStore.storeImageData(broadcasterName, target, {
 									image: imageResult.message,
 									analysis: imageResult.analysis,
-									revisedPrompt: imageResult.revisedPrompt,
+									prompt: imageResult.prompt,
 									date: new Date().toISOString(),
 								});
 

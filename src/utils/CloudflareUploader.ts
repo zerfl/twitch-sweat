@@ -1,8 +1,8 @@
-import FormData from 'form-data';
 import axios from 'axios';
+import FormData from 'form-data';
 import { nanoid } from 'nanoid';
 
-interface CloudflareUploadSuccess {
+export interface CloudflareUploadSuccess {
 	success: true;
 	result: {
 		id: string;
@@ -12,12 +12,12 @@ interface CloudflareUploadSuccess {
 	};
 }
 
-interface CloudflareUploadError {
+export interface CloudflareUploadError {
 	success: false;
 	errors: { message: string }[];
 }
 
-type CloudflareUploadResponse = CloudflareUploadSuccess | CloudflareUploadError;
+export type CloudflareUploadResponse = CloudflareUploadSuccess | CloudflareUploadError;
 
 export class CloudflareUploader {
 	private readonly baseUrl = 'https://api.cloudflare.com/client/v4/accounts';
@@ -55,6 +55,19 @@ export class CloudflareUploader {
 	): Promise<CloudflareUploadResponse> {
 		const formData = new FormData();
 		formData.append('url', url);
+		formData.append('id', nanoid(10));
+		formData.append('metadata', JSON.stringify(metadata));
+
+		return this.sendRequest(formData);
+	}
+
+	public async uploadImageFromBase64(
+		base64: string,
+		metadata: Record<string, unknown> = {},
+	): Promise<CloudflareUploadResponse> {
+		const formData = new FormData();
+		const buffer = Buffer.from(base64, 'base64');
+		formData.append('file', buffer, { filename: 'image.png', contentType: 'image/png' });
 		formData.append('id', nanoid(10));
 		formData.append('metadata', JSON.stringify(metadata));
 
