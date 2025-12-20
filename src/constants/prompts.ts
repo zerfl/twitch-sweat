@@ -147,13 +147,16 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
 2. Follow IMMEDIATELY with the banner featuring the username.
-3. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
+3. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
 4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
-5. IMPORTANT: Generate a CONCISE prompt. Be brief and to the point. Focus on key elements only, removing unnecessary details while preserving the core concept and style.
+5. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
 6. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
+7. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
+8. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
 
 [NOTES]
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
+- The goal is to match a human viewer's reasonable visual expectation based on the data, not to minimize detail. Interpretive clarity takes precedence over minimalism.
 - AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
 
 Data:
@@ -172,13 +175,16 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
-2. Build the rest of the scene CREATIVELY, ensuring EVERY ELEMENT aligns with the STYLE and CONTEXT from the JSON. DO NOT ADD ANYTHING beyond what the JSON provides.
+2. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
 3. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
-4. IMPORTANT: Generate a CONCISE prompt. Be brief and to the point. Focus on key elements only, removing unnecessary details while preserving the core concept and style.
+4. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
 5. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
+6. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
+7. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
 
 [NOTES]
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
+- The goal is to match a human viewer's reasonable visual expectation based on the data, not to minimize detail. Interpretive clarity takes precedence over minimalism.
 - AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
 
 Data:
