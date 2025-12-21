@@ -24,12 +24,12 @@ export const sceneSchema = z.object({
 		looks: z.string(),
 	}),
 	objects: z.object({
-		banner: z
+		text_integration: z
 			.object({
 				content: z.string(),
 				style: z.string(),
 			})
-			.describe('A way to show the literal username in the scene'),
+			.describe('A creative way to organically integrate the literal username text into the scene'),
 		additional_objects: z
 			.array(z.string())
 			.describe(

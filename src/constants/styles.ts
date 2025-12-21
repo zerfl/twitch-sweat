@@ -29,10 +29,10 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 			'Vibrant neon colors with jagged distortions and digital artifacts, creating a chaotic and futuristic atmosphere.',
 	},
 	{
-		name: 'neon graffiti illustration',
+		name: 'Neon graffiti mural',
 		keyword: 'neon',
 		description:
-			'Bright, glowing colors and bold, jagged outlines capture the energy of neon street art, blending urban grit with vivid vibrancy. Layered textures of paint drips and spray patterns evoke a dynamic, rebellious spirit.',
+			'A glowing neon graffiti mural painted on a dark, gritty brick wall. Intense, fluorescent colors pop against the rough, textured urban surface. The style features spray paint drips, glowing outlines, and a high-contrast street art aesthetic that looks like it is illuminated by blacklight.',
 	},
 	{
 		name: 'Byzantine art illustration',
@@ -44,13 +44,13 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		name: 'expressionism drawing',
 		keyword: 'expressionism',
 		description:
-			'Bold, exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
+			'Exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
 	},
 	{
 		name: 'charcoal drawing',
 		keyword: 'charcoal',
 		description:
-			'Monochromatic shading with rough, textured lines, emphasizing stark contrasts and sketch-like detail.',
+			'Monochromatic shading with rough, textured lines, emphasizing stark contrasts and sketch-like detail. The main subject stands out in vivid color against the black and white environment.',
 	},
 	{
 		name: 'Delicate pastel illustration',
@@ -59,16 +59,16 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 			'A delicate and soft illustration style inspired by nostalgic Japanese aesthetics. This style features minimalist lines, subtle gradients, and pastel-like tones, evoking a calm, approachable atmosphere. The artwork avoids anime tropes and emphasizes unique, playful elements, such as distinct features like blue skin, while retaining a cozy and charming aesthetic.',
 	},
 	{
-		name: 'Bold lines drawing with vivid colors',
-		keyword: 'takahashi',
+		name: '1980s Anime Style',
+		keyword: 'anime80s',
 		description:
-			'Exaggerated expressions, bold lines, and vivid colors evoking the playful and dynamic style of 1980s anime.',
+			'A high-quality single snapshot of a 1980s anime frame. Vibrant colors, cel shading, and nostalgic aesthetics. Soft, fluid lines and expressive character designs with a classic, hand-drawn broadcast feel.',
 	},
 	{
-		name: 'Detailed line work drawing',
-		keyword: 'sadamoto',
+		name: '90s Sci-Fi Anime Style',
+		keyword: 'anime90s',
 		description:
-			'Detailed line work, subdued color palettes, and melancholic atmospheres, reflecting a moody and introspective style.',
+			'A single cinematic snapshot of a 90s sci-fi anime frame. Sleek, angular character designs with thin, precise linework. A distinct broadcast aesthetic with slender proportions, cool color tones, and a slightly psychological atmosphere.',
 	},
 	{
 		name: 'fauvism painting',
@@ -86,10 +86,16 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		description: 'Loose, rough lines with an emphasis on expressive, hand-drawn quality and organic textures.',
 	},
 	{
-		name: 'Baroque oil painting',
-		keyword: 'baroque',
+		name: 'Pop Art Comic',
+		keyword: 'popart',
 		description:
-			'Dramatic compositions with rich, textured brushstrokes and dynamic lighting, emphasizing grandeur and emotional intensity. Elaborate details and strong contrasts between light and shadow evoke the opulence and theatricality of Baroque art, perfect for epic, storytelling scenes.',
+			'A 1960s comic-book pop-art style with bold black contour lines, flat saturated primary colors, and dense halftone dot shading. Facial features are expressive, stylized, and slightly exaggerated, capturing a dramatic mid-panel moment. The composition is clean and graphic with strong pop-art energy and vintage print charm. The artwork must be full-bleed — no borders.',
+	},
+	{
+		name: 'Vinyl Record Cover',
+		keyword: 'vinyl',
+		description:
+			'An album cover presented as a physical vinyl record sleeve zoomed in close-up, showing the entire square front cover without cropping. The design features bold, striking imagery suitable for a music album. The composition mimics professional product photography with realistic lighting, shadows, and surface textures like cardboard grain and delicate wear. The artwork must be full-bleed — no borders.',
 	},
 	{
 		name: 'Romanticism landscape painting',
@@ -107,25 +113,19 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		name: 'Classical fresco painting',
 		keyword: 'fresco',
 		description:
-			'Monumental architectural scenes with soaring columns and vaulted ceilings, rendered in earthy pigments and soft matte textures characteristic of ancient wall paintings. Dramatic natural light streams through classical arches, illuminating weathered stone surfaces and creating depth through architectural perspective.',
-	},
-	{
-		name: 'Pointillism painting',
-		keyword: 'pointillism',
-		description:
-			'Vibrant scenes composed entirely of small, distinct dots of pure color, creating luminous optical effects and shimmering atmospheric light through careful dot placement.',
+			'A pristine, freshly painted classical fresco. Vibrant mineral pigments applied to clean lime plaster create a luminous, matte finish. The colors are bright and distinct, featuring rich blues, reds, and golds, capturing the breathtaking grandeur of a masterpiece in its original, unweathered state.',
 	},
 	{
 		name: 'Art Deco illustration',
 		keyword: 'art_deco',
 		description:
-			'Bold geometric shapes and streamlined forms with metallic gold and silver accents. Symmetrical compositions featuring stepped forms and sunburst patterns create a sense of luxury and modern sophistication.',
+			'Geometric shapes and streamlined forms with metallic gold and silver accents. Symmetrical compositions featuring stepped forms and sunburst patterns create a sense of luxury and modern sophistication.',
 	},
 	{
 		name: 'Ukiyo-e woodblock print',
 		keyword: 'ukiyoe',
 		description:
-			'Bold outlines and flat areas of vibrant color with detailed patterns. Elegant compositions emphasize decorative elements and create depth through layered planes.',
+			'Ukiyo-e woodblock print',
 	},
 	{
 		name: 'Vaporwave illustration',
@@ -137,13 +137,19 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		name: 'Risograph print',
 		keyword: 'risograph',
 		description:
-			'Bold two-tone compositions with slight misalignment and textural grain. Vibrant spot colors overlap to create unexpected combinations with a distinctive printed quality.',
+			'Two-tone compositions with slight misalignment and textural grain. Vibrant spot colors overlap to create unexpected combinations with a distinctive printed quality.',
 	},
 	{
 		name: 'Gouache painting',
 		keyword: 'gouache',
 		description:
 			'Matte, opaque colors with smooth transitions and precise edges. Rich pigments blend seamlessly while maintaining crisp details and bold graphic qualities.',
+	},
+	{
+		name: '90s TV Ad',
+		keyword: 'tvad90s',
+		description:
+			'A vibrant, high-energy 1990s television commercial screenshot. Saturated colors, slightly soft VHS definition, and dynamic camera angles. The scene radiates enthusiastic, cheesy marketing energy with a classic broadcast aesthetic.',
 	},
 	{
 		name: 'Acrylic painting',

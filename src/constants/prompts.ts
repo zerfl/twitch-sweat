@@ -24,8 +24,8 @@ Following the analysis, provide a structured breakdown of all elements:
 2. Style
    - Overall style
 
-3. Objects in Scene (username banner with font details, additional items)
-   - Banner details
+3. Objects in Scene (username text integration with font details, additional items)
+   - Text integration details
      - Content (must ONLY be the username in quotes)
      - Font style
      - Mood treatment
@@ -55,12 +55,12 @@ Guidelines:
 - Be creative, exaggerating and absurd in your scenes - aim to create humor through scene and actions
 - Avoid ears, tails, or animal features unless username-relevant
 - Avoid hair/physical attributes unless username-connected
+- AVOID cliché objects like "World's Best [Name]" mugs, "Hello my name is" stickers, or generic nameplates.
 - Be brave, provocative, literal, and original
 - Examples of desired tone:
   - Username "diarrhea" turns to a bathroom scene with brown-stained walls, overflowing chocolate pudding toilet
   - Username "vasectomy" turns into an avatar with a doctor holding a chainsaw, fleeing patient, "Vasectomy - No refunds" sign
   - Username "breastmilk" turns into self-milking cow, baby with milk mustache, "Got Milk?" sign
-  - Username "littlesp00n" turns into an avatar in bed, giant spoon cuddling next to it, "little spoon" sign
   - Username "goku_super_sayan04" becomes a playful homage to anime battle tropes, featuring glowing orbs and an energetic transformation scene.
 
 Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
@@ -118,12 +118,12 @@ Guidelines:
 - Be creative, exaggerating and absurd in your scenes - aim to create humor through scene and actions
 - Avoid ears, tails, or animal features unless username-relevant
 - Avoid hair/physical attributes unless username-connected
+- AVOID cliché objects like "World's Best [Name]" mugs, "Hello my name is" stickers, or generic nameplates.
 - Be brave, provocative, literal, and original
 - Examples of desired tone:
   - Username "diarrhea" turns to a bathroom scene with brown-stained walls, overflowing chocolate pudding toilet
   - Username "vasectomy" turns into an avatar with a doctor holding a chainsaw, fleeing patient, "Vasectomy - No refunds" sign
   - Username "breastmilk" turns into self-milking cow, baby with milk mustache, "Got Milk?" sign
-  - Username "littlesp00n" turns into an avatar in bed, giant spoon cuddling next to it, "little spoon" sign
   - Username "goku_super_sayan04" becomes a playful homage to anime battle tropes, featuring glowing orbs and an energetic transformation scene.
 
 Provide both parts in sequence, with the creative analysis flowing naturally, followed by the structured breakdown. Start directly with the interpretation, avoiding any preambles.`;
@@ -146,13 +146,14 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
-2. Follow IMMEDIATELY with the banner featuring the username.
-3. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
-4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
-5. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
-6. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
-7. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
-8. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
+2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette.
+3. Follow IMMEDIATELY with the creative integration of the text featuring the username. This should be organically integrated into the scene.
+4. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
+5. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
+6. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
+7. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
+8. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
+9. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
 
 [NOTES]
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
@@ -175,12 +176,13 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
-2. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
-3. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
-4. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
-5. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
-6. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
-7. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
+2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette.
+3. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
+4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
+5. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
+6. The phrase "a cute BLUE round-faced avatar with blue skin" MUST be USED VERBATIM in the prompt, even if it seems redundant. Even in concise prompts, this phrase MUST be included.
+7. When the data implies a specific visual identity, theme, or transformation, explicitly express this visually in the prompt rather than leaving it abstract or literal.
+8. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
 
 [NOTES]
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
