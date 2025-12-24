@@ -1,9 +1,9 @@
 export const STRUCTURED_OUTPUT_PROMPT = `Today is __DATE__.
 
-You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a detailed creative analysis, followed by a structured data format of that same analysis.
+You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a concise creative analysis of the username, followed by a structured markdown list of the avatar description.
 
 PART 1 - CREATIVE ANALYSIS
-Create a detailed, flowing narrative analysis following these elements:
+Create a flowing narrative analysis following these elements:
 
 1. Reason through the necessary steps to interpret the username thoroughly and creatively
 2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)
@@ -67,10 +67,10 @@ Provide both parts in sequence, with the creative analysis flowing naturally, fo
 
 export const STRUCTURED_OUTPUT_PROMPT_NO_BANNER = `Today is __DATE__.
 
-You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a detailed creative analysis, followed by a structured data format of that same analysis.
+You are an expert in interpreting a username and creating an avatar description, delivering both creative analysis and structured documentation. You'll first create a concise creative analysis of the username, followed by a structured markdown list of the avatar description.
 
 PART 1 - CREATIVE ANALYSIS
-Create a detailed, flowing narrative analysis following these elements:
+Create a flowing narrative analysis following these elements:
 
 1. Reason through the necessary steps to interpret the username thoroughly and creatively
 2. Interpretation of the username (taking wordplay, puns, meanings and cultural references into account)

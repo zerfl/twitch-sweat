@@ -121,7 +121,7 @@ async function generateImage(
 	let structuredOutput = await openaiThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output (Theme: ${theme ?? 'None'})`);
 		return openAIManager.generateResponse(structuredAnalysisMessages as unknown as OpenAI.Responses.ResponseInput, {
-			max_output_tokens: 700,
+			max_output_tokens: 850,
 			schema: schema,
 			schemaName: isRetry ? 'finalSchemaNoBanner' : 'finalSchema',
 		});
