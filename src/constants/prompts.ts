@@ -26,7 +26,7 @@ Following the analysis, provide a structured breakdown of all elements:
 
 3. Objects in Scene (username text integration with font details, additional items)
    - Text integration details
-     - Content (must ONLY be the username in quotes)
+     - Content (MUST be the username verbatim, with no additional text)
      - Font style
      - Mood treatment
    - Additional objects (relevant to the username)
@@ -146,8 +146,8 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
-2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette.
-3. Follow IMMEDIATELY with the creative integration of the text featuring the username. This should be organically integrated into the scene.
+2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette and describe their facial expression.
+3. Follow IMMEDIATELY with the creative integration of the text featuring the username. This should be organically integrated into the scene. The username must be verbatim in quotes.
 4. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
 5. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
 6. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
@@ -156,6 +156,7 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 9. The phrase "a cute BLUE round-faced avatar with blue skin" must remain verbatim and intact, but the prompt may build upon it with additional descriptive details derived from the input data.
 
 [NOTES]
+- Quotes may appear only around the username; no other quoted text is allowed.
 - The ENTIRE PROMPT must be based SOLELY on the JSON input. DO NOT INVENT or add elements that AREN'T explicitly provided or implied.
 - The goal is to match a human viewer's reasonable visual expectation based on the data, not to minimize detail. Interpretive clarity takes precedence over minimalism.
 - AVOID abstract descriptors ("dream-like"), VAGUE TERMS ("digital art"), and HUMAN-LIKE features like ears or tails.
@@ -176,7 +177,7 @@ These are just examples. ALWAYS begin with the style specified in the JSON.
 
 [IMPORTANT RULES]
 1. The phrase "a cute BLUE round-faced avatar with blue skin" MUST BE USED VERBATIM IN THE PROMPT. EXACTLY AS WRITTEN. DO NOT MODIFY IT.
-2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette.
+2. Emphasize that the avatar has a perfectly smooth, spherical head shape with a continuous, unbroken silhouette and describe their facial expression.
 3. Build the rest of the scene creatively, ensuring every element aligns with the STYLE and CONTEXT from the JSON. You MAY include visually implied traits that are reasonably inferred from the provided data (such as names, themes, or descriptors), as long as they do not contradict the JSON.
 4. Reinforce the chosen style's NATURAL ARTISTIC QUALITIES by HIGHLIGHTING textures, techniques, or visual features TYPICAL of the style (e.g., "soft, blended strokes" for watercolor, "bold shapes" for pixel art). If NO specific description is provided, INFER COMMON PROPERTIES of the style.
 5. IMPORTANT: Prioritize correct visual interpretation over brevity. The prompt may be longer if needed to clearly express stylistic intent, character identity, or implied visual traits derived from the input data.
