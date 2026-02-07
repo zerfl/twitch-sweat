@@ -1,10 +1,10 @@
 import 'dotenv/config';
 import Joi from 'joi';
 
-type EnvVars = {
+export interface EnvVars {
 	TWITCH_CLIENT_ID: string;
 	TWITCH_CLIENT_SECRET: string;
-	TWITCH_CHANNELS: string;
+	TWITCH_CHANNEL: string;
 	TWITCH_ACCESS_TOKEN: string;
 	TWITCH_REFRESH_TOKEN: string;
 	TWITCH_ADMINS: string;
@@ -19,14 +19,17 @@ type EnvVars = {
 	CLOUDFLARE_API_TOKEN: string;
 	CLOUDFLARE_IMAGES_URL: string;
 	CLOUDFLARE_AI_GATEWAY?: string;
-	DATABASE_URL?: string;
-};
+	DATABASE_URL: string;
+	DB_CONNECT_TIMEOUT_MS: number;
+	INTERNAL_API_BEARER_TOKEN: string;
+	APP_PORT: number;
+}
 
 const envSchema = Joi.object()
 	.keys({
 		TWITCH_CLIENT_ID: Joi.string().required(),
 		TWITCH_CLIENT_SECRET: Joi.string().required(),
-		TWITCH_CHANNELS: Joi.string().required(),
+		TWITCH_CHANNEL: Joi.string().required(),
 		TWITCH_ACCESS_TOKEN: Joi.string().required(),
 		TWITCH_REFRESH_TOKEN: Joi.string().required(),
 		TWITCH_ADMINS: Joi.string().required(),
@@ -41,7 +44,10 @@ const envSchema = Joi.object()
 		CLOUDFLARE_API_TOKEN: Joi.string().required(),
 		CLOUDFLARE_IMAGES_URL: Joi.string().uri().required(),
 		CLOUDFLARE_AI_GATEWAY: Joi.string().uri().optional(),
-		DATABASE_URL: Joi.string().uri(),
+		DATABASE_URL: Joi.string().uri().required(),
+		DB_CONNECT_TIMEOUT_MS: Joi.number().integer().min(1000).default(5000),
+		INTERNAL_API_BEARER_TOKEN: Joi.string().required(),
+		APP_PORT: Joi.number().integer().min(1).max(65535).default(3000),
 	})
 	.unknown();
 

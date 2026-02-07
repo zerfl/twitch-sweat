@@ -5,6 +5,7 @@
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.ts",
+    "vitest.legacy.config.ts",
     "environment.d.ts"
   ]
 }

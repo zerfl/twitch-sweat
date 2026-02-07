@@ -43,8 +43,7 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 	{
 		name: 'expressionism drawing',
 		keyword: 'expressionism',
-		description:
-			'Exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
+		description: 'Exaggerated lines and intense colors that convey heightened emotions and subjective experience.',
 	},
 	{
 		name: 'charcoal drawing',
@@ -63,6 +62,12 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		keyword: 'anime80s',
 		description:
 			'A high-quality single snapshot of a 1980s anime frame. Vibrant colors, cel shading, and nostalgic aesthetics. Soft, fluid lines and expressive character designs with a classic, hand-drawn broadcast feel.',
+	},
+	{
+		name: '1980s Sci-Fi Anime Style',
+		keyword: 'anime80sv2',
+		description:
+			'Japanese 1980s anime illustration with a retro-futuristic sci-fi aesthetic. Bold, confident line art and slightly exaggerated facial features define the character, with classic cel-shaded shadows and visible hand-drawn qualities. Colors are vibrant yet subtly desaturated, enhanced by dramatic neon lighting. The setting is a dynamic cyberpunk environment featuring glowing signage, urban density, atmospheric haze, and subtle film grain. The overall image feels energetic, nostalgic, and unmistakably hand-animated, like an iconic 80s sci-fi anime frame.',
 	},
 	{
 		name: '90s Sci-Fi Anime Style',
@@ -124,8 +129,7 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 	{
 		name: 'Ukiyo-e woodblock print',
 		keyword: 'ukiyoe',
-		description:
-			'Ukiyo-e woodblock print',
+		description: 'Ukiyo-e woodblock print',
 	},
 	{
 		name: 'Vaporwave illustration',
@@ -156,5 +160,23 @@ export const DALLE_TEMPLATES: DalleTemplate[] = [
 		keyword: 'acrylic',
 		description:
 			'Vivid, textured surfaces with bold brushstrokes and vibrant colors. Thick impasto layers create dynamic textures and expressive mark-making.',
+	},
+	{
+		name: 'Psychedelic neon fantasy illustration',
+		keyword: 'neon_fantasy',
+		description:
+			'Flat, graphic illustration with bold black outlines and saturated neon colors. The main subject is rendered as a cute, expressive character with clean shapes and readable forms, while the surrounding world explodes with dense, maximalist decoration. Rainbow gradients, color cycling, and playful motifs like stars, moons, hearts, clouds, flowers, and butterflies fill every inch of the scene. The aesthetic evokes nostalgic 80s–90s stationery, stickers, and coloring-book art. Lighting is non-realistic and illustrative, prioritizing joy, energy, and instant visual impact.',
+	},
+	{
+		name: 'Maximalist coloring-book sticker art',
+		keyword: 'coloring_book_maximalist',
+		description:
+			"Highly decorative, character-driven illustration inspired by vintage children's coloring books and collectible stickers. Thick, confident outlines enclose flat, vibrant color fills with frequent rainbow gradients. The central character remains simple, friendly, and iconic, while the background is densely packed with repeating whimsical patterns and fantasy elements. The overall look is playful, nostalgic, and exuberant, with no empty space and a strong emphasis on charm and readability.",
+	},
+	{
+		name: 'Neon fantasy character illustration',
+		keyword: 'neon_character_fantasy',
+		description:
+			'A polished character-style illustration set within a vibrant, psychedelic neon fantasy world. The subject is simplified slightly toward iconic shapes while preserving recognizable traits and anatomy, with gently enhanced, expressive eyes suited for children’s media. Clean, confident outlines and smooth illustrated shading define the character, keeping it readable and lovable. The surrounding environment is densely filled with maximalist decoration: rainbow skies, stars, clouds, flowers, hearts, moons, butterflies, and whimsical fantasy motifs. Bold black outlines, saturated neon colors, frequent color cycling, and flat graphic rendering create a joyful, high-energy scene reminiscent of 80s–90s stationery, stickers, and coloring-book covers.',
 	},
 ];

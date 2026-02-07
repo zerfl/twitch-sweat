@@ -20,6 +20,7 @@
     "scripts",
     "tests",
     "vitest.config.ts",
+    "vitest.legacy.config.ts",
     "./environment.d.ts"
   ]
 }

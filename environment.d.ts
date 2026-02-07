@@ -3,9 +3,10 @@ declare global {
 		interface ProcessEnv {
 			TWITCH_CLIENT_ID: string;
 			TWITCH_CLIENT_SECRET: string;
-			TWITCH_CHANNELS: string;
+			TWITCH_CHANNEL: string;
 			TWITCH_ACCESS_TOKEN: string;
 			TWITCH_REFRESH_TOKEN: string;
+			TWITCH_ADMINS: string;
 			OPENAI_API_KEY: string;
 			OPENAI_IMAGES_PER_MINUTE: string;
 			OPENAI_MODEL: string;
@@ -16,6 +17,13 @@ declare global {
 			CLOUDFLARE_ACCOUNT_ID: string;
 			CLOUDFLARE_API_TOKEN: string;
 			CLOUDFLARE_IMAGES_URL: string;
+			CLOUDFLARE_AI_GATEWAY?: string;
+			DATABASE_URL: string;
+			DB_CONNECT_TIMEOUT_MS: string;
+			INTERNAL_API_BEARER_TOKEN: string;
+			APP_PORT: string;
 		}
 	}
 }
+
+export {};
