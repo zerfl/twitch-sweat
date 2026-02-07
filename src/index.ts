@@ -30,7 +30,7 @@ import { ImageDataStore } from './managers/ImageDataStore';
 import { MeaningManager } from './managers/MeaningManager';
 import { ThemeManager } from './managers/ThemeManager';
 import { finalSchema, finalSchemaNoBanner } from './schemas/imageSchemas';
-import { CloudflareUploader, CloudflareUploadResponse } from './utils/CloudflareUploader';
+import { CloudflareUploader, type CloudflareUploadResponse } from './utils/CloudflareUploader';
 import {
 	createSystemPrompt,
 	ensureFileExists,
@@ -41,12 +41,6 @@ import {
 	truncate,
 } from './utils/helpers';
 import { OpenAIManager } from './utils/OpenAIManager';
-
-type SingleImage = {
-	image: string;
-	analysis: string;
-	prompt: string;
-};
 
 type ImageGenerationSuccess = {
 	success: true;
@@ -73,6 +67,37 @@ const testGenerationState = {
 	isRunning: false,
 	shouldCancel: false,
 };
+
+function parseAccessToken(raw: string): AccessToken | null {
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		if (typeof parsed !== 'object' || parsed === null) {
+			return null;
+		}
+
+		const data = parsed as Record<string, unknown>;
+		if (
+			typeof data.accessToken !== 'string' ||
+			typeof data.refreshToken !== 'string' ||
+			typeof data.expiresIn !== 'number' ||
+			typeof data.obtainmentTimestamp !== 'number' ||
+			!Array.isArray(data.scope)
+		) {
+			return null;
+		}
+
+		const scope = data.scope.filter((value): value is string => typeof value === 'string');
+		return {
+			accessToken: data.accessToken,
+			refreshToken: data.refreshToken,
+			expiresIn: data.expiresIn,
+			obtainmentTimestamp: data.obtainmentTimestamp,
+			scope,
+		};
+	} catch {
+		return null;
+	}
+}
 
 async function generateImage(
 	username: string,
@@ -118,7 +143,7 @@ async function generateImage(
 		},
 	];
 
-	let structuredOutput = await openaiThrottle(() => {
+	const structuredOutput = await openaiThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Requesting structured output (Theme: ${theme ?? 'None'})`);
 		return openAIManager.generateResponse(structuredAnalysisMessages as unknown as OpenAI.Responses.ResponseInput, {
 			max_output_tokens: 850,
@@ -164,6 +189,11 @@ async function generateImage(
 		console.log(`[${uniqueId}]`, userMeaning, 'Image generation failed: No data returned');
 		return { success: false, message: 'No image returned' };
 	}
+	const firstImage = image.data[0];
+	if (!firstImage) {
+		console.log(`[${uniqueId}]`, userMeaning, 'Image generation failed: First image payload is missing');
+		return { success: false, message: 'No image payload returned' };
+	}
 
 	const updatedMetadata = {
 		...metadata,
@@ -173,10 +203,10 @@ async function generateImage(
 
 	let uploadedImage: CloudflareUploadResponse;
 
-	if (image.data[0].b64_json) {
-		uploadedImage = await cfUploader.uploadImageFromBase64(image.data[0].b64_json, updatedMetadata);
-	} else if (image.data[0].url) {
-		uploadedImage = await cfUploader.uploadImageFromUrl(image.data[0].url, updatedMetadata);
+	if (firstImage.b64_json) {
+		uploadedImage = await cfUploader.uploadImageFromBase64(firstImage.b64_json, updatedMetadata);
+	} else if (firstImage.url) {
+		uploadedImage = await cfUploader.uploadImageFromUrl(firstImage.url, updatedMetadata);
 	} else {
 		console.log(`[${uniqueId}]`, userMeaning, 'Image generation failed: No image data found (url or b64_json)');
 		return { success: false, message: 'No image data returned' };
@@ -224,7 +254,7 @@ async function handleEventAndSendImageMessage(
 			theme,
 			null,
 		);
-	} catch (error) {
+	} catch (_error) {
 		imageResult = { success: false, message: 'Error' };
 	}
 
@@ -347,6 +377,10 @@ async function main() {
 				}
 			} else if (command === '!generateimage') {
 				const broadcasterName = params[0];
+				if (!broadcasterName) {
+					await message.reply('Please provide a broadcaster name.');
+					return;
+				}
 				const theme = themeManager.getBroadcasterTheme(broadcasterName);
 				params.splice(0, 1);
 
@@ -409,7 +443,10 @@ async function main() {
 
 		if (await exists(tokenFilePath)) {
 			try {
-				tokenData = JSON.parse(await fs.readFile(tokenFilePath, 'utf-8'));
+				const parsedTokenData = parseAccessToken(await fs.readFile(tokenFilePath, 'utf-8'));
+				if (parsedTokenData) {
+					tokenData = parsedTokenData;
+				}
 			} catch (error) {
 				console.log('Error reading token file, using default values.', error);
 			}
@@ -438,7 +475,12 @@ async function main() {
 
 				if (params.length === 0) return;
 
-				const target = params[0].replace('@', '');
+				const targetParam = params[0];
+				if (!targetParam) {
+					return;
+				}
+
+				const target = targetParam.replace('@', '');
 				if (ignoreListManager.isUserIgnored(target.toLowerCase())) {
 					await messagesThrottle(() => {
 						return say(`@${userName} ${target} does not partake in ai sweatlings.`);
@@ -457,18 +499,18 @@ async function main() {
 						trigger: 'custom',
 					};
 					const theme = themeManager.getBroadcasterTheme(broadcasterName);
-					imageResult = await retryAsyncOperation(
-						generateImage,
-						MAX_RETRIES,
-						target.toLowerCase(),
-						target,
+						imageResult = await retryAsyncOperation(
+							generateImage,
+							MAX_RETRIES,
+							target.toLowerCase(),
+							target,
 						metadata,
 						theme,
 						specifiedStyle,
 					);
-				} catch (error) {
-					imageResult = { success: false, message: 'Error' };
-				}
+					} catch (_error) {
+						imageResult = { success: false, message: 'Error' };
+					}
 
 				if (!imageResult.success) {
 					await messagesThrottle(() => {
@@ -477,7 +519,7 @@ async function main() {
 
 					return;
 				}
-				await imageDataStore.storeImageData(broadcasterName, params[0], {
+				await imageDataStore.storeImageData(broadcasterName, targetParam, {
 					image: imageResult.message,
 					analysis: imageResult.analysis,
 					prompt: imageResult.prompt,
@@ -573,6 +615,13 @@ async function main() {
 				}
 
 				const user = params[0];
+				if (!user) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username and a meaning.`);
+					});
+					return;
+				}
+
 				const meaning = params.slice(1).join(' ');
 				await meaningManager.setMeaning(user.toLowerCase(), meaning);
 
@@ -592,6 +641,12 @@ async function main() {
 					return;
 				}
 				const user = params[0];
+				if (!user) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
 				const wasRemoved = await meaningManager.removeMeaning(user.toLowerCase());
 
 				await messagesThrottle(() => {
@@ -611,6 +666,12 @@ async function main() {
 				}
 
 				const user = params[0];
+				if (!user) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
 				const meaning = meaningManager.getUserMeaning(user.toLowerCase());
 				await messagesThrottle(() => {
 					return say(`@${userName} ${user} means '${meaning}' dnkNoted`);
@@ -643,6 +704,12 @@ async function main() {
 				}
 
 				const gifter = params[0];
+				if (!gifter) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
 				await bannedGifterManager.addBannedGifter(broadcasterName, gifter);
 
 				await messagesThrottle(() => {
@@ -662,6 +729,12 @@ async function main() {
 				}
 
 				const gifter = params[0];
+				if (!gifter) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username.`);
+					});
+					return;
+				}
 				const wasRemoved = await bannedGifterManager.removeBannedGifter(broadcasterName, gifter);
 
 				await messagesThrottle(() => {
@@ -732,8 +805,17 @@ async function main() {
 					return;
 				}
 
-				const target = params[0].replace('@', '');
-				const count = params.length > 1 ? parseInt(params[1], 10) : 1;
+				const targetParam = params[0];
+				if (!targetParam) {
+					await messagesThrottle(() => {
+						return say(`@${userName} Please provide a username to test with.`);
+					});
+					return;
+				}
+
+				const target = targetParam.replace('@', '');
+				const countParam = params[1];
+				const count = countParam ? parseInt(countParam, 10) : 1;
 
 				if (isNaN(count) || count < 1) {
 					await messagesThrottle(() => {
@@ -870,7 +952,7 @@ async function main() {
 					]);
 				}
 			}),
-			createBotCommand('canceltests', async (params, { userName, broadcasterName, say }) => {
+			createBotCommand('canceltests', async (_params, { userName, broadcasterName, say }) => {
 				if (!isAdminOrBroadcaster(userName, broadcasterName, twitchAdmins)) {
 					return;
 				}
@@ -906,23 +988,23 @@ async function main() {
 		});
 		twitchBot.onSub(({ broadcasterName, userName, userDisplayName }) => {
 			console.log('onSub', broadcasterName, userName, userDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
+			void handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 		twitchBot.onResub(({ broadcasterName, userName, userDisplayName }) => {
 			console.log('onResub', broadcasterName, userName, userDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
+			void handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 		twitchBot.onGiftPaidUpgrade(({ broadcasterName, userName, userDisplayName }) => {
 			console.log('onGiftPaidUpgrade', broadcasterName, userName, userDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
+			void handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 		twitchBot.onPrimePaidUpgrade(({ broadcasterName, userName, userDisplayName }) => {
 			console.log('onPrimePaidUpgrade', broadcasterName, userName, userDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
+			void handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 		twitchBot.onStandardPayForward(({ broadcasterName, gifterName, gifterDisplayName }) => {
 			console.log('onStandardPayForward', broadcasterName, gifterName, gifterDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, {
+			void handleEventAndSendImageMessage(twitchBot, discordBot, {
 				broadcasterName,
 				userName: gifterName,
 				userDisplayName: gifterDisplayName,
@@ -931,7 +1013,7 @@ async function main() {
 		});
 		twitchBot.onCommunityPayForward(({ broadcasterName, gifterName, gifterDisplayName }) => {
 			console.log('onCommunityPayForward', broadcasterName, gifterName, gifterDisplayName);
-			handleEventAndSendImageMessage(twitchBot, discordBot, {
+			void handleEventAndSendImageMessage(twitchBot, discordBot, {
 				broadcasterName,
 				userName: gifterName,
 				userDisplayName: gifterDisplayName,
@@ -948,7 +1030,7 @@ async function main() {
 				return;
 			}
 
-			handleEventAndSendImageMessage(twitchBot, discordBot, {
+			void handleEventAndSendImageMessage(twitchBot, discordBot, {
 				broadcasterName,
 				userName: gifterName || 'Anonymous',
 				userDisplayName: gifterDisplayName || 'Anonymous',
@@ -965,7 +1047,7 @@ async function main() {
 				console.log(`Gifter ${gifterName || 'anonymous'} is banned for ${broadcasterName}, not generating image`);
 				return;
 			}
-			handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
+			void handleEventAndSendImageMessage(twitchBot, discordBot, { broadcasterName, userName, userDisplayName });
 		});
 	} catch (error: unknown) {
 		if (error instanceof InvalidTokenError) {
@@ -1007,9 +1089,15 @@ try {
 	const originalLog = console.log;
 	console.log = (...args: unknown[]) => {
 		const now = new Date().toISOString();
-		fs.appendFile(logFilePath, `[${now}] ${args.join(' ')}\n`).then(() => {
-			originalLog(`[${now}]`, ...args);
-		});
+		void fs
+			.appendFile(logFilePath, `[${now}] ${args.join(' ')}\n`)
+			.then(() => {
+				originalLog(`[${now}]`, ...args);
+			})
+			.catch((error: unknown) => {
+				originalLog(`[${now}]`, 'Failed to write log file:', error);
+				originalLog(`[${now}]`, ...args);
+			});
 	};
 
 	await Promise.all([

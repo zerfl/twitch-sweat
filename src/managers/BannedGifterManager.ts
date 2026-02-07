@@ -1,8 +1,9 @@
 import { PathLike, promises as fs } from 'fs';
+import type { BannedGifterRepository } from '../modules/storage/contracts';
 
 type BroadcasterBannedGiftersMap = Map<string, string[]>;
 
-export class BannedGifterManager {
+export class BannedGifterManager implements BannedGifterRepository {
 	private readonly broadcasterBannedGiftersMap: BroadcasterBannedGiftersMap = new Map();
 
 	constructor(private readonly filePath: PathLike) {}

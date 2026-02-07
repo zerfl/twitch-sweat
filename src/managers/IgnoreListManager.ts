@@ -1,6 +1,10 @@
 import { promises as fs } from 'fs';
+import { z } from 'zod';
+import type { IgnoreListRepository } from '../modules/storage/contracts';
 
-export class IgnoreListManager {
+const ignoreListSchema = z.array(z.string());
+
+export class IgnoreListManager implements IgnoreListRepository {
 	private ignoreList: Set<string>;
 	private readonly filePath: string;
 
@@ -12,9 +16,9 @@ export class IgnoreListManager {
 	public async loadIgnoreList(): Promise<void> {
 		try {
 			const data = await fs.readFile(this.filePath, 'utf-8');
-			const ignoreList = JSON.parse(data) as string[];
-			this.ignoreList = new Set(ignoreList);
-		} catch (error) {
+			const parsed = ignoreListSchema.safeParse(JSON.parse(data) as unknown);
+			this.ignoreList = new Set(parsed.success ? parsed.data : []);
+		} catch (_error) {
 			// create file if it doesn't exist
 			await this.saveIgnoreList();
 		}

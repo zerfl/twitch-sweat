@@ -26,7 +26,14 @@ function parseLineWithId(line: string): { timestamp: string; id: string; usernam
 	const match = line.match(/\[(.*?)\] \[(.*?)\] (.*?) (.*)/);
 	if (!match) return null;
 
-	const [_, timestamp, id, username, action] = match;
+	const timestamp = match[1];
+	const id = match[2];
+	const username = match[3];
+	const action = match[4];
+	if (!timestamp || !id || !username || !action) {
+		return null;
+	}
+
 	return { timestamp, id, username, action };
 }
 
@@ -34,13 +41,19 @@ function parseLineWithoutId(line: string): { timestamp: string; username: string
 	const match = line.match(/\[(.*?)\] (.*?) (.*)/);
 	if (!match) return null;
 
-	const [_, timestamp, username, action] = match;
+	const timestamp = match[1];
+	const username = match[2];
+	const action = match[3];
+	if (!timestamp || !username || !action) {
+		return null;
+	}
+
 	return { timestamp, username, action };
 }
 
 function extractImageUrl(line: string): string | null {
 	const match = line.match(/Image uploaded: (https:\/\/[^\s]+)/);
-	return match ? match[1] : null;
+	return match?.[1] ?? null;
 }
 
 function extractRevisedPrompt(line: string): string | null {
@@ -52,20 +65,26 @@ function extractRevisedPrompt(line: string): string | null {
 
 function extractStyle(line: string): string | null {
 	const match = line.match(/Using template: (.*)/);
-	return match ? match[1].trim() : null;
+	return match?.[1]?.trim() ?? null;
 }
 
 function extractTheme(line: string): string | null {
 	let match = line.match(/Requesting structured output \(Theme: (.*?)\)/);
 	if (match) {
-		const theme = match[1].trim();
+		const theme = match[1]?.trim();
+		if (!theme) {
+			return null;
+		}
 
 		return theme === 'None' ? '' : theme;
 	}
 
 	match = line.match(/Adding theme: (.*)/);
 	if (match) {
-		const theme = match[1].trim();
+		const theme = match[1]?.trim();
+		if (!theme) {
+			return null;
+		}
 
 		return theme;
 	}
@@ -141,6 +160,9 @@ async function processLog(logFilePath: string, outputFilePath: string) {
 
 	for (let i = logLines.length - 1; i >= 0; i--) {
 		const line = logLines[i];
+		if (!line) {
+			continue;
+		}
 		linesProcessed++;
 
 		if (linesProcessed % 10000 === 0) {
@@ -352,4 +374,4 @@ const logFileDir = path.dirname(logFilePath);
 const logFileName = path.basename(logFilePath, path.extname(logFilePath));
 const outputFilePath = path.join(logFileDir, `${logFileName}Images.json`);
 
-processLog(logFilePath, outputFilePath);
+void processLog(logFilePath, outputFilePath);

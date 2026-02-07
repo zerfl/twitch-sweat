@@ -1,8 +1,9 @@
 import { PathLike, promises as fs } from 'fs';
+import type { MeaningRepository } from '../modules/storage/contracts';
 
 type UserMeaningMap = Map<string, string>;
 
-export class MeaningManager {
+export class MeaningManager implements MeaningRepository {
 	private readonly userMeaningMap: UserMeaningMap = new Map();
 
 	constructor(private readonly filePath: PathLike) {}

@@ -1,8 +1,9 @@
 import { PathLike, promises as fs } from 'fs';
+import type { ThemeRepository } from '../modules/storage/contracts';
 
 type BroadcasterThemeMap = Map<string, string>;
 
-export class ThemeManager {
+export class ThemeManager implements ThemeRepository {
 	private readonly broadcasterThemeMap: BroadcasterThemeMap = new Map();
 
 	constructor(private readonly filePath: PathLike) {}

@@ -7,27 +7,33 @@
 	"scripts": {
 		"start": "node --import tsx src/index.ts",
 		"dev": "tsx watch src/index.ts",
-		"test": "mocha -r tsx 'tests/**/*.test.ts'"
+		"lint": "eslint .",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run --coverage",
+		"test:watch": "vitest",
+		"test:migration": "vitest run tests/migration --coverage.enabled=false",
+		"migration:report": "tsx scripts/migrate-json-to-postgres.ts --input-dir data --output-file artifacts/migration-report.json"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"devDependencies": {
-		"@types/chai": "^4.3.11",
+		"@eslint/js": "^9.39.2",
 		"@types/express": "^5.0.0",
-		"@types/mocha": "^10.0.6",
 		"@types/node": "^20.17.10",
 		"@typescript-eslint/eslint-plugin": "^8.18.1",
 		"@typescript-eslint/parser": "^8.18.1",
-		"chai": "^4.3.10",
+		"@vitest/coverage-v8": "^4.0.18",
 		"eslint": "^9.17.0",
 		"eslint-config-prettier": "^9.1.0",
-		"mocha": "^10.2.0",
+		"globals": "^17.3.0",
 		"prettier": "^3.1.1",
 		"ts-node": "^10.9.2",
 		"tslib": "^2.6.2",
 		"tsx": "^4.6.2",
-		"typescript": "^5.3.3"
+		"typescript": "^5.3.3",
+		"typescript-eslint": "^8.54.0",
+		"vitest": "^4.0.18"
 	},
 	"dependencies": {
 		"@twurple/api": "^7.2.1",

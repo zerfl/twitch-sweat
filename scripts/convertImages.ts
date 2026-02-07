@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,20 +28,38 @@ type BroadcasterImagesNew = {
 	[key: string]: { [key: string]: NewImageData[] };
 };
 
+const oldImageDataSchema = z.object({
+	user: z.string(),
+	image: z.string(),
+	date: z.string(),
+});
+
+const broadcasterImagesOldSchema = z.record(z.string(), z.array(oldImageDataSchema));
+
 async function convertImagesFile() {
 	const imagesFilePath = path.resolve(path.join(__dirname, '..', 'data', 'images.json'));
-	const oldData: BroadcasterImagesOld = JSON.parse(await fs.readFile(imagesFilePath, 'utf-8'));
+	const parsed = broadcasterImagesOldSchema.parse(JSON.parse(await fs.readFile(imagesFilePath, 'utf-8')) as unknown);
+	const oldData: BroadcasterImagesOld = parsed;
 	const newData: BroadcasterImagesNew = {};
 
-	for (const broadcaster in oldData) {
+	for (const [broadcaster, images] of Object.entries(oldData)) {
 		newData[broadcaster] = {};
+		const broadcasterImages = newData[broadcaster];
+		if (!broadcasterImages) {
+			continue;
+		}
 
-		for (const image of oldData[broadcaster]) {
-			if (!newData[broadcaster][image.user]) {
-				newData[broadcaster][image.user] = [];
+		for (const image of images) {
+			if (!broadcasterImages[image.user]) {
+				broadcasterImages[image.user] = [];
 			}
 
-			newData[broadcaster][image.user].push({
+			const userImages = broadcasterImages[image.user];
+			if (!userImages) {
+				continue;
+			}
+
+			userImages.push({
 				image: image.image,
 				date: image.date,
 				analysis: '',

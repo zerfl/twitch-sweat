@@ -1,6 +1,27 @@
 import 'dotenv/config';
 import Joi from 'joi';
 
+type EnvVars = {
+	TWITCH_CLIENT_ID: string;
+	TWITCH_CLIENT_SECRET: string;
+	TWITCH_CHANNELS: string;
+	TWITCH_ACCESS_TOKEN: string;
+	TWITCH_REFRESH_TOKEN: string;
+	TWITCH_ADMINS: string;
+	OPENAI_API_KEY: string;
+	OPENAI_IMAGES_PER_MINUTE: number;
+	OPENAI_MODEL: string;
+	DISCORD_BOT_TOKEN: string;
+	DISCORD_CHANNELS: string;
+	DISCORD_ADMIN_USER_ID: string;
+	MAX_RETRIES: number;
+	CLOUDFLARE_ACCOUNT_ID: string;
+	CLOUDFLARE_API_TOKEN: string;
+	CLOUDFLARE_IMAGES_URL: string;
+	CLOUDFLARE_AI_GATEWAY?: string;
+	DATABASE_URL?: string;
+};
+
 const envSchema = Joi.object()
 	.keys({
 		TWITCH_CLIENT_ID: Joi.string().required(),
@@ -24,29 +45,13 @@ const envSchema = Joi.object()
 	})
 	.unknown();
 
-const { value: envVars, error } = envSchema.prefs({ errors: { label: 'key' } }).validate(process.env);
+const validationResult = envSchema.prefs({ errors: { label: 'key' } }).validate(process.env) as {
+	value: unknown;
+	error?: Joi.ValidationError;
+};
 
-if (error) {
-	throw new Error(`Config validation error: ${error.message}`);
+if (validationResult.error) {
+	throw new Error(`Config validation error: ${validationResult.error.message}`);
 }
 
-export const env = envVars as {
-	TWITCH_CLIENT_ID: string;
-	TWITCH_CLIENT_SECRET: string;
-	TWITCH_CHANNELS: string;
-	TWITCH_ACCESS_TOKEN: string;
-	TWITCH_REFRESH_TOKEN: string;
-	TWITCH_ADMINS: string;
-	OPENAI_API_KEY: string;
-	OPENAI_IMAGES_PER_MINUTE: number;
-	OPENAI_MODEL: string;
-	DISCORD_BOT_TOKEN: string;
-	DISCORD_CHANNELS: string;
-	DISCORD_ADMIN_USER_ID: string;
-	MAX_RETRIES: number;
-	CLOUDFLARE_ACCOUNT_ID: string;
-	CLOUDFLARE_API_TOKEN: string;
-	CLOUDFLARE_IMAGES_URL: string;
-	CLOUDFLARE_AI_GATEWAY?: string;
-	DATABASE_URL: string;
-};
+export const env = validationResult.value as EnvVars;

@@ -4,6 +4,11 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "module": "esnext",
     "target": "esnext",
@@ -13,6 +18,8 @@
   "include": [
     "src",
     "scripts",
+    "tests",
+    "vitest.config.ts",
     "./environment.d.ts"
   ]
 }

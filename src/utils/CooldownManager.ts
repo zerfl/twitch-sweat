@@ -26,7 +26,7 @@ export class CooldownManager {
 	}
 
 	public checkCooldowns = (user: string, broadcasterName: string): string => {
-		this.saveCooldowns('./cooldowns.json');
+		void this.saveCooldowns('./cooldowns.json');
 		const now = Date.now();
 
 		const globalCooldownRemaining = this.checkGlobalCooldown(
@@ -62,7 +62,7 @@ export class CooldownManager {
 		broadcasterName: string,
 	): number {
 		const userLastRequestMap =
-			this.userCooldownMap.get(broadcasterName) || new Map();
+			this.userCooldownMap.get(broadcasterName) || new Map<string, number>();
 		const lastUserRequest = userLastRequestMap.get(user) || 0;
 		return Math.round(
 			this.userCooldownInSeconds - (now - lastUserRequest) / 1000,
@@ -79,7 +79,7 @@ export class CooldownManager {
 		timestamp: number,
 	) {
 		const userLastRequestMap =
-			this.userCooldownMap.get(broadcasterName) || new Map();
+			this.userCooldownMap.get(broadcasterName) || new Map<string, number>();
 		userLastRequestMap.set(user, timestamp);
 		this.userCooldownMap.set(broadcasterName, userLastRequestMap);
 	}

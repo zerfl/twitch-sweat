@@ -1,6 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import { nanoid } from 'nanoid';
+import { z } from 'zod';
 
 export interface CloudflareUploadSuccess {
 	success: true;
@@ -19,6 +20,23 @@ export interface CloudflareUploadError {
 
 export type CloudflareUploadResponse = CloudflareUploadSuccess | CloudflareUploadError;
 
+const uploadSuccessSchema = z.object({
+	success: z.literal(true),
+	result: z.object({
+		id: z.string(),
+		filename: z.string(),
+		uploaded: z.boolean(),
+		requiredSignedURLs: z.boolean(),
+	}),
+});
+
+const uploadErrorSchema = z.object({
+	success: z.literal(false),
+	errors: z.array(z.object({ message: z.string() })),
+});
+
+const uploadResponseSchema = z.union([uploadSuccessSchema, uploadErrorSchema]);
+
 export class CloudflareUploader {
 	private readonly baseUrl = 'https://api.cloudflare.com/client/v4/accounts';
 
@@ -35,8 +53,15 @@ export class CloudflareUploader {
 		try {
 			const url = `${this.baseUrl}/${this.accountId}/images/v1`;
 			const headers = { ...formData.getHeaders(), Authorization: `Bearer ${this.apiToken}` };
-			const response = await axios.post(url, formData, { headers });
-			return response.data;
+			const response = await axios.post<unknown>(url, formData, { headers });
+			const parsed = uploadResponseSchema.safeParse(response.data);
+			if (!parsed.success) {
+				return {
+					success: false,
+					errors: [{ message: 'Cloudflare API returned an invalid response payload.' }],
+				};
+			}
+			return parsed.data;
 		} catch (error) {
 			if (axios.isAxiosError(error)) {
 				return {
