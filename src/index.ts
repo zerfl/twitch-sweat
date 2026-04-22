@@ -151,8 +151,9 @@ async function generateImage(
 	const image = await dalleThrottle(() => {
 		console.log(`[${uniqueId}]`, userMeaning, `Creating image.`);
 		return openAIManager.generateImage({
-			model: 'gpt-image-1.5',
+			model: 'gpt-image-2',
 			prompt: finalImagePrompt,
+			background: 'opaque',
 			quality: 'medium',
 			size: '1024x1024',
 		});
