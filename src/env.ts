@@ -12,6 +12,7 @@ const envSchema = Joi.object()
 		OPENAI_API_KEY: Joi.string().required(),
 		OPENAI_IMAGES_PER_MINUTE: Joi.number().integer().min(1).required(),
 		OPENAI_MODEL: Joi.string().required(),
+		OPENAI_IMAGE_MODEL: Joi.string().default('gpt-image-2'),
 		DISCORD_BOT_TOKEN: Joi.string().required(),
 		DISCORD_CHANNELS: Joi.string().required(),
 		DISCORD_ADMIN_USER_ID: Joi.string().required(),
@@ -40,6 +41,7 @@ export const env = envVars as {
 	OPENAI_API_KEY: string;
 	OPENAI_IMAGES_PER_MINUTE: number;
 	OPENAI_MODEL: string;
+	OPENAI_IMAGE_MODEL: string;
 	DISCORD_BOT_TOKEN: string;
 	DISCORD_CHANNELS: string;
 	DISCORD_ADMIN_USER_ID: string;
