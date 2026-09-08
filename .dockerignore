@@ -1,0 +1,10 @@
+node_modules
+.git
+.idea
+.devcontainer
+.claude
+dist
+tests
+data
+.env
+.env.*

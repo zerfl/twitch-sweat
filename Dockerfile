@@ -2,7 +2,7 @@
 FROM node:20-alpine
 
 # Install pnpm globally
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.15.0
 
 # Create app directory
 WORKDIR /usr/src/app

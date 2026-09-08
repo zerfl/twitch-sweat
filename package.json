@@ -42,5 +42,11 @@
 		"openai": "^6.14.0",
 		"throttled-queue": "^2.1.4",
 		"zod": "^3.23.8"
+	},
+	"packageManager": "pnpm@10.15.0",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
 	}
 }
